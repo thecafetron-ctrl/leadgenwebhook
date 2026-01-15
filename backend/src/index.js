@@ -36,9 +36,13 @@ dotenv.config();
 // Import database
 import { initDatabase, closeDatabase } from './database/connection.js';
 
+// Import services
+import { initEmailService } from './services/emailService.js';
+
 // Import routes
 import leadRoutes from './routes/leads.js';
 import webhookRoutes from './routes/webhooks.js';
+import emailRoutes from './routes/email.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,6 +177,7 @@ app.get('/api', (req, res) => {
 // Mount routes
 app.use('/api/leads', leadRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/email', emailRoutes);
 
 // ============================================
 // STATIC FILE SERVING (Production)
@@ -232,6 +237,9 @@ async function startServer() {
     // Initialize database (async for sql.js)
     await initDatabase();
     console.log('✅ Database connected');
+
+    // Initialize email service
+    initEmailService();
 
     // Start server
     app.listen(PORT, () => {

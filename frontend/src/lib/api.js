@@ -185,4 +185,38 @@ export const healthApi = {
   }
 };
 
+// ==========================================
+// EMAIL API
+// ==========================================
+
+export const emailApi = {
+  /**
+   * Check email service status
+   */
+  getStatus: async () => {
+    return api.get('/email/status');
+  },
+
+  /**
+   * Send a test email
+   */
+  sendTest: async (email, subject = null, content = null) => {
+    return api.post('/email/test', { email, subject, content });
+  },
+
+  /**
+   * Send a custom email
+   */
+  send: async ({ to, subject, html, text }) => {
+    return api.post('/email/send', { to, subject, html, text });
+  },
+
+  /**
+   * Send an email sequence
+   */
+  sendSequence: async (email, sequence) => {
+    return api.post('/email/sequence', { email, sequence });
+  }
+};
+
 export default api;

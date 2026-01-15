@@ -1,12 +1,12 @@
 /**
- * Webhook Testing Playground
+ * Webhook & Email Testing Playground
  * 
- * Send test webhooks and simulate integrations.
+ * Send test webhooks, simulate integrations, and test email sequences.
  */
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { 
   Send, 
   RefreshCw,
@@ -18,10 +18,14 @@ import {
   Clock,
   Copy,
   FileJson,
-  Zap
+  Zap,
+  Mail,
+  Plus,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { webhooksApi } from '../lib/api';
+import { webhooksApi, emailApi } from '../lib/api';
 import { usePlaygroundStore } from '../lib/store';
 import { 
   cn, 
@@ -71,6 +75,29 @@ function Playground() {
   } = usePlaygroundStore();
 
   const [jsonError, setJsonError] = useState(null);
+  
+  // Email testing state
+  const [activeTab, setActiveTab] = useState('webhooks'); // 'webhooks' or 'email'
+  const [testEmail, setTestEmail] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailContent, setEmailContent] = useState('');
+  const [emailSequence, setEmailSequence] = useState([
+    { subject: 'Welcome! 👋', content: 'Thanks for signing up! We\'re excited to have you.', delay: 'immediately' },
+    { subject: 'Quick tip to get started', content: 'Here\'s a quick tip to help you make the most of our platform.', delay: '1 day' },
+    { subject: 'How can we help?', content: 'Just checking in - is there anything we can help you with?', delay: '3 days' }
+  ]);
+  const [emailResponse, setEmailResponse] = useState(null);
+  const [emailHistory, setEmailHistory] = useState([]);
+
+  // Check email service status
+  const { data: emailStatus } = useQuery({
+    queryKey: ['emailStatus'],
+    queryFn: async () => {
+      const response = await emailApi.getStatus();
+      return response.data;
+    },
+    refetchInterval: 30000
+  });
 
   // Send test webhook mutation
   const sendTestMutation = useMutation({
@@ -174,16 +201,142 @@ function Playground() {
 
   const selectedType = webhookTypes.find(t => t.id === webhookType);
 
+  // Send test email mutation
+  const sendEmailMutation = useMutation({
+    mutationFn: async () => {
+      if (!testEmail) {
+        throw new Error('Email address is required');
+      }
+      return emailApi.sendTest(testEmail, emailSubject || null, emailContent || null);
+    },
+    onSuccess: (response) => {
+      setEmailResponse({
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString()
+      });
+      setEmailHistory(prev => [{
+        id: Date.now(),
+        type: 'test',
+        email: testEmail,
+        success: true,
+        timestamp: new Date().toISOString()
+      }, ...prev].slice(0, 20));
+      toast.success(`Test email sent to ${testEmail}!`);
+    },
+    onError: (error) => {
+      const errorMessage = error.response?.data?.message || error.message;
+      setEmailResponse({
+        success: false,
+        error: errorMessage,
+        timestamp: new Date().toISOString()
+      });
+      setEmailHistory(prev => [{
+        id: Date.now(),
+        type: 'test',
+        email: testEmail,
+        success: false,
+        error: errorMessage,
+        timestamp: new Date().toISOString()
+      }, ...prev].slice(0, 20));
+      toast.error(errorMessage);
+    }
+  });
+
+  // Send email sequence mutation
+  const sendSequenceMutation = useMutation({
+    mutationFn: async () => {
+      if (!testEmail) {
+        throw new Error('Email address is required');
+      }
+      return emailApi.sendSequence(testEmail, emailSequence);
+    },
+    onSuccess: (response) => {
+      setEmailResponse({
+        success: true,
+        data: response.data,
+        timestamp: new Date().toISOString()
+      });
+      setEmailHistory(prev => [{
+        id: Date.now(),
+        type: 'sequence',
+        email: testEmail,
+        steps: emailSequence.length,
+        success: true,
+        timestamp: new Date().toISOString()
+      }, ...prev].slice(0, 20));
+      toast.success(`Email sequence (${emailSequence.length} emails) sent to ${testEmail}!`);
+    },
+    onError: (error) => {
+      const errorMessage = error.response?.data?.message || error.message;
+      setEmailResponse({
+        success: false,
+        error: errorMessage,
+        timestamp: new Date().toISOString()
+      });
+      toast.error(errorMessage);
+    }
+  });
+
+  const addSequenceStep = () => {
+    setEmailSequence(prev => [...prev, { 
+      subject: `Email ${prev.length + 1}`, 
+      content: 'Your email content here...', 
+      delay: '1 day' 
+    }]);
+  };
+
+  const removeSequenceStep = (index) => {
+    setEmailSequence(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateSequenceStep = (index, field, value) => {
+    setEmailSequence(prev => prev.map((step, i) => 
+      i === index ? { ...step, [field]: value } : step
+    ));
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white">Testing Playground</h2>
-        <p className="text-dark-400 text-sm mt-1">
-          Send test webhooks and simulate external integrations
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Testing Playground</h2>
+          <p className="text-dark-400 text-sm mt-1">
+            Test webhooks and email sequences
+          </p>
+        </div>
+        
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-2 bg-dark-800/50 p-1.5 rounded-xl">
+          <button
+            onClick={() => setActiveTab('webhooks')}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all",
+              activeTab === 'webhooks'
+                ? "bg-primary-500 text-white"
+                : "text-dark-400 hover:text-white"
+            )}
+          >
+            <Zap className="w-4 h-4" />
+            Webhooks
+          </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-all",
+              activeTab === 'email'
+                ? "bg-gradient-to-r from-pink-500 to-orange-500 text-white"
+                : "text-dark-400 hover:text-white"
+            )}
+          >
+            <Mail className="w-4 h-4" />
+            Email Testing
+          </button>
+        </div>
       </div>
 
+      {activeTab === 'webhooks' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Webhook Type & Payload */}
         <div className="lg:col-span-2 space-y-6">
@@ -483,6 +636,382 @@ function Playground() {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Email Testing Tab */}
+      {activeTab === 'email' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Email Testing */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Email Service Status */}
+            <div className={cn(
+              "glass-card p-4 flex items-center gap-4",
+              emailStatus?.data?.configured 
+                ? "border-success-500/30" 
+                : "border-warning-500/30"
+            )}>
+              {emailStatus?.data?.configured ? (
+                <>
+                  <div className="w-10 h-10 rounded-lg bg-success-500/20 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-success-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">Email Service Connected</p>
+                    <p className="text-xs text-dark-400">SMTP configured and ready to send</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-lg bg-warning-500/20 flex items-center justify-center">
+                    <AlertCircle className="w-5 h-5 text-warning-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">Email Service Not Configured</p>
+                    <p className="text-xs text-dark-400">
+                      Set SMTP_USER and SMTP_PASS environment variables
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Single Email Test */}
+            <div className="glass-card p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Send Test Email</h3>
+                  <p className="text-xs text-dark-400">Send a quick test to any email address</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    placeholder="recipient@example.com"
+                    className="w-full px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl text-white placeholder:text-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">
+                    Subject (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Test email subject..."
+                    className="w-full px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl text-white placeholder:text-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">
+                    Content (optional)
+                  </label>
+                  <textarea
+                    value={emailContent}
+                    onChange={(e) => setEmailContent(e.target.value)}
+                    placeholder="Your test email content..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-dark-800/50 border border-dark-700 rounded-xl text-white placeholder:text-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50 resize-none"
+                  />
+                </div>
+
+                <button
+                  onClick={() => sendEmailMutation.mutate()}
+                  disabled={!testEmail || sendEmailMutation.isPending}
+                  className={cn(
+                    "w-full px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all",
+                    "bg-gradient-to-r from-pink-500 to-orange-500 text-white",
+                    "hover:shadow-lg hover:shadow-pink-500/25",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {sendEmailMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Send Test Email
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Email Sequence Builder */}
+            <div className="glass-card p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Email Sequence</h3>
+                    <p className="text-xs text-dark-400">Test a multi-email sequence</p>
+                  </div>
+                </div>
+                <button
+                  onClick={addSequenceStep}
+                  className="px-3 py-1.5 rounded-lg bg-dark-700 text-dark-300 hover:bg-dark-600 hover:text-white text-sm flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Step
+                </button>
+              </div>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                {emailSequence.map((step, index) => (
+                  <div
+                    key={index}
+                    className="p-4 bg-dark-800/30 border border-dark-700 rounded-xl"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-primary-500/20 text-primary-400 text-xs font-medium flex items-center justify-center">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm font-medium text-white">Email {index + 1}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={step.delay}
+                          onChange={(e) => updateSequenceStep(index, 'delay', e.target.value)}
+                          className="text-xs px-2 py-1 bg-dark-700 border border-dark-600 rounded-lg text-dark-300 focus:outline-none"
+                        >
+                          <option value="immediately">Immediately</option>
+                          <option value="1 hour">After 1 hour</option>
+                          <option value="1 day">After 1 day</option>
+                          <option value="2 days">After 2 days</option>
+                          <option value="3 days">After 3 days</option>
+                          <option value="1 week">After 1 week</option>
+                        </select>
+                        {emailSequence.length > 1 && (
+                          <button
+                            onClick={() => removeSequenceStep(index)}
+                            className="p-1 text-dark-500 hover:text-danger-400 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <input
+                      type="text"
+                      value={step.subject}
+                      onChange={(e) => updateSequenceStep(index, 'subject', e.target.value)}
+                      placeholder="Email subject..."
+                      className="w-full px-3 py-2 mb-2 bg-dark-900/50 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-primary-500/50"
+                    />
+                    
+                    <textarea
+                      value={step.content}
+                      onChange={(e) => updateSequenceStep(index, 'content', e.target.value)}
+                      placeholder="Email content..."
+                      rows={2}
+                      className="w-full px-3 py-2 bg-dark-900/50 border border-dark-700 rounded-lg text-sm text-white placeholder:text-dark-500 focus:outline-none focus:border-primary-500/50 resize-none"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-dark-700">
+                <button
+                  onClick={() => sendSequenceMutation.mutate()}
+                  disabled={!testEmail || sendSequenceMutation.isPending || emailSequence.length === 0}
+                  className={cn(
+                    "w-full px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all",
+                    "bg-gradient-to-r from-purple-500 to-blue-500 text-white",
+                    "hover:shadow-lg hover:shadow-purple-500/25",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {sendSequenceMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Sending Sequence...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Send All {emailSequence.length} Emails to {testEmail || 'recipient'}
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-dark-500 text-center mt-2">
+                  For testing, all emails send immediately (delays shown are for reference)
+                </p>
+              </div>
+            </div>
+
+            {/* Email Response */}
+            {emailResponse && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  "glass-card p-6",
+                  emailResponse.success 
+                    ? "border-success-500/30" 
+                    : "border-danger-500/30"
+                )}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-white flex items-center gap-2">
+                    {emailResponse.success ? (
+                      <CheckCircle2 className="w-5 h-5 text-success-400" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-danger-400" />
+                    )}
+                    Email Response
+                  </h3>
+                  <span className="text-xs text-dark-400">
+                    {formatDateTime(emailResponse.timestamp)}
+                  </span>
+                </div>
+                
+                <div className="code-block text-xs overflow-auto max-h-64">
+                  <pre>
+                    {emailResponse.success 
+                      ? JSON.stringify(emailResponse.data, null, 2)
+                      : emailResponse.error
+                    }
+                  </pre>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Right Column - Email History & Setup Guide */}
+          <div className="space-y-6">
+            {/* Email History */}
+            <div className="glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-white">Email History</h3>
+                {emailHistory.length > 0 && (
+                  <button
+                    onClick={() => setEmailHistory([])}
+                    className="text-xs text-dark-400 hover:text-danger-400 flex items-center gap-1 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Clear
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {emailHistory.length === 0 ? (
+                  <div className="text-center py-8 text-dark-500">
+                    <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No emails sent yet</p>
+                    <p className="text-xs">Test emails will appear here</p>
+                  </div>
+                ) : (
+                  emailHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        entry.success
+                          ? "bg-success-500/5 border-success-500/20"
+                          : "bg-danger-500/5 border-danger-500/20"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {entry.success ? (
+                            <CheckCircle2 className="w-4 h-4 text-success-400" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-danger-400" />
+                          )}
+                          <span className="text-sm font-medium text-white">
+                            {entry.type === 'sequence' ? `Sequence (${entry.steps})` : 'Test Email'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-dark-500">
+                          {formatDateTime(entry.timestamp)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-dark-400 truncate">
+                        To: {entry.email}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* SMTP Setup Guide */}
+            <div className="glass-card p-6">
+              <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                <Code2 className="w-5 h-5 text-primary-400" />
+                SMTP Setup
+              </h3>
+              <div className="space-y-3 text-sm">
+                <p className="text-dark-400 text-xs">
+                  Add these environment variables to enable email:
+                </p>
+                <div className="space-y-2">
+                  <code className="text-xs text-pink-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    SMTP_HOST=smtp.gmail.com
+                  </code>
+                  <code className="text-xs text-pink-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    SMTP_PORT=587
+                  </code>
+                  <code className="text-xs text-pink-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    SMTP_USER=your@gmail.com
+                  </code>
+                  <code className="text-xs text-pink-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    SMTP_PASS=app_password
+                  </code>
+                </div>
+                <p className="text-dark-500 text-xs mt-3">
+                  💡 For Gmail, use an App Password from your Google Account settings.
+                </p>
+              </div>
+            </div>
+
+            {/* API Reference */}
+            <div className="glass-card p-6">
+              <h3 className="font-semibold text-white mb-4">Email API</h3>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="text-dark-400 mb-1">Send Test:</p>
+                  <code className="text-xs text-pink-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    POST /api/email/test
+                  </code>
+                </div>
+                <div>
+                  <p className="text-dark-400 mb-1">Send Sequence:</p>
+                  <code className="text-xs text-purple-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    POST /api/email/sequence
+                  </code>
+                </div>
+                <div>
+                  <p className="text-dark-400 mb-1">Check Status:</p>
+                  <code className="text-xs text-blue-400 bg-dark-800/50 px-2 py-1 rounded block">
+                    GET /api/email/status
+                  </code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
