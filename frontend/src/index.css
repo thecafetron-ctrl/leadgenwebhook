@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  
+  body {
+    @apply bg-dark-950 text-dark-100 font-sans antialiased;
+    background-image: 
+      radial-gradient(ellipse at top, rgba(14, 165, 233, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(217, 70, 239, 0.03) 0%, transparent 50%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  
+  ::selection {
+    @apply bg-primary-500/30 text-white;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-900/50;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-600 rounded-full hover:bg-dark-500;
+  }
+}
+
+/* Component styles */
+@layer components {
+  /* Glass card effect */
+  .glass-card {
+    @apply bg-dark-900/50 backdrop-blur-xl border border-dark-700/50 rounded-2xl;
+  }
+  
+  /* Glow button */
+  .btn-glow {
+    @apply relative overflow-hidden transition-all duration-300;
+    @apply before:absolute before:inset-0 before:bg-gradient-to-r before:from-primary-500/20 before:to-accent-500/20;
+    @apply before:opacity-0 hover:before:opacity-100 before:transition-opacity;
+  }
+  
+  /* Input styles */
+  .input-field {
+    @apply w-full px-4 py-3 bg-dark-800/50 border border-dark-600 rounded-xl;
+    @apply text-dark-100 placeholder-dark-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500;
+    @apply transition-all duration-200;
+  }
+  
+  /* Table styles */
+  .table-row {
+    @apply border-b border-dark-700/50 hover:bg-dark-800/30 transition-colors;
+  }
+  
+  /* Status badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .badge-new {
+    @apply bg-primary-500/20 text-primary-300 border border-primary-500/30;
+  }
+  
+  .badge-contacted {
+    @apply bg-accent-500/20 text-accent-300 border border-accent-500/30;
+  }
+  
+  .badge-qualified {
+    @apply bg-success-500/20 text-success-400 border border-success-500/30;
+  }
+  
+  .badge-converted {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+  }
+  
+  .badge-lost {
+    @apply bg-danger-500/20 text-danger-400 border border-danger-500/30;
+  }
+  
+  /* Priority badges */
+  .priority-low {
+    @apply text-dark-400;
+  }
+  
+  .priority-medium {
+    @apply text-warning-400;
+  }
+  
+  .priority-high {
+    @apply text-orange-400;
+  }
+  
+  .priority-urgent {
+    @apply text-danger-400;
+  }
+  
+  /* Source badges */
+  .source-meta {
+    @apply bg-blue-500/20 text-blue-300 border border-blue-500/30;
+  }
+  
+  .source-calcom {
+    @apply bg-purple-500/20 text-purple-300 border border-purple-500/30;
+  }
+  
+  .source-manual {
+    @apply bg-dark-600/50 text-dark-300 border border-dark-500/30;
+  }
+  
+  .source-api {
+    @apply bg-cyan-500/20 text-cyan-300 border border-cyan-500/30;
+  }
+  
+  /* Animated gradient border */
+  .gradient-border {
+    position: relative;
+  }
+  
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, #0ea5e9, #d946ef, #0ea5e9);
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.5;
+  }
+  
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  /* Code/JSON display */
+  .code-block {
+    @apply font-mono text-sm bg-dark-900 rounded-lg p-4 overflow-auto;
+    @apply border border-dark-700;
+  }
+  
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse bg-dark-700/50 rounded;
+  }
+}
+
+/* Utility styles */
+@layer utilities {
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-accent-400;
+  }
+  
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+  }
+  
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(217, 70, 239, 0.3);
+  }
+  
+  .glow-success {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+  
+  /* Animation delays */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  .delay-500 { animation-delay: 500ms; }
+}

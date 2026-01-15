@@ -1,0 +1,673 @@
+/**
+ * Leads Management Page
+ * 
+ * Full lead table with filtering, searching, sorting, and management.
+ */
+
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  Search, 
+  Filter, 
+  Plus, 
+  Trash2, 
+  Edit3, 
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Download,
+  Upload,
+  Mail,
+  Phone,
+  Building2,
+  Calendar,
+  Tag,
+  X,
+  Check
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { leadsApi } from '../lib/api';
+import { useAppStore } from '../lib/store';
+import { 
+  cn, 
+  formatDate, 
+  formatRelativeTime, 
+  getFullName, 
+  getInitials,
+  getStatusColor, 
+  getSourceColor,
+  getPriorityColor,
+  formatSource,
+  formatPhone,
+  debounce,
+  downloadCSV
+} from '../lib/utils';
+import LeadModal from '../components/LeadModal';
+import LeadDetailModal from '../components/LeadDetailModal';
+
+const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
+const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
+const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+
+function Leads() {
+  const queryClient = useQueryClient();
+  const { 
+    leadFilters, 
+    setLeadFilters, 
+    resetLeadFilters,
+    selectedLeads, 
+    setSelectedLeads, 
+    toggleLeadSelection,
+    clearSelectedLeads,
+    modals,
+    openModal,
+    closeModal
+  } = useAppStore();
+
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('DESC');
+  const [searchInput, setSearchInput] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Debounced search
+  const debouncedSearch = useMemo(
+    () => debounce((value) => setLeadFilters({ search: value }), 300),
+    [setLeadFilters]
+  );
+
+  useEffect(() => {
+    debouncedSearch(searchInput);
+  }, [searchInput, debouncedSearch]);
+
+  // Fetch leads
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['leads', page, sortBy, sortOrder, leadFilters],
+    queryFn: () => leadsApi.getLeads({
+      page,
+      limit: 20,
+      sortBy,
+      sortOrder,
+      search: leadFilters.search,
+      status: leadFilters.status.join(','),
+      source: leadFilters.source.join(','),
+      priority: leadFilters.priority,
+      dateFrom: leadFilters.dateFrom,
+      dateTo: leadFilters.dateTo
+    }),
+    keepPreviousData: true
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: leadsApi.deleteLead,
+    onSuccess: () => {
+      toast.success('Lead deleted successfully');
+      queryClient.invalidateQueries(['leads']);
+      closeModal('deleteConfirm');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to delete lead');
+    }
+  });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: leadsApi.bulkDelete,
+    onSuccess: (data) => {
+      toast.success(`${data.deletedCount} leads deleted`);
+      queryClient.invalidateQueries(['leads']);
+      clearSelectedLeads();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to delete leads');
+    }
+  });
+
+  // Listen for refresh events
+  useEffect(() => {
+    const handleRefresh = () => refetch();
+    window.addEventListener('refresh-data', handleRefresh);
+    return () => window.removeEventListener('refresh-data', handleRefresh);
+  }, [refetch]);
+
+  const leads = data?.data || [];
+  const pagination = data?.pagination || { page: 1, totalPages: 1, totalCount: 0 };
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(column);
+      setSortOrder('DESC');
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLeads.length === leads.length) {
+      clearSelectedLeads();
+    } else {
+      setSelectedLeads(leads.map(l => l.id));
+    }
+  };
+
+  const handleExport = () => {
+    const exportData = leads.map(lead => ({
+      name: getFullName(lead.first_name, lead.last_name),
+      email: lead.email,
+      phone: lead.phone,
+      company: lead.company,
+      source: formatSource(lead.source),
+      status: lead.status,
+      priority: lead.priority,
+      created_at: formatDate(lead.created_at, 'yyyy-MM-dd HH:mm:ss')
+    }));
+    downloadCSV(exportData, `leads-export-${formatDate(new Date(), 'yyyy-MM-dd')}.csv`);
+    toast.success('Leads exported successfully');
+  };
+
+  const activeFilterCount = [
+    leadFilters.status.length,
+    leadFilters.source.length,
+    leadFilters.priority ? 1 : 0,
+    leadFilters.dateFrom ? 1 : 0,
+    leadFilters.dateTo ? 1 : 0
+  ].reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Leads</h2>
+          <p className="text-dark-400 text-sm mt-1">
+            {pagination.totalCount} total leads
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            className="px-4 py-2 rounded-xl bg-dark-800/50 border border-dark-600 text-dark-300 hover:text-white hover:border-primary-500 transition-all flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+          <button
+            onClick={() => openModal('createLead')}
+            className="px-4 py-2 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors flex items-center gap-2 font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            Add Lead
+          </button>
+        </div>
+      </div>
+
+      {/* Search & Filter Bar */}
+      <div className="glass-card p-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, phone, or company..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="input-field pl-10"
+            />
+          </div>
+          
+          {/* Filter Toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              "px-4 py-2 rounded-xl border flex items-center gap-2 transition-all",
+              showFilters || activeFilterCount > 0
+                ? "bg-primary-500/20 border-primary-500 text-primary-300"
+                : "bg-dark-800/50 border-dark-600 text-dark-300 hover:border-primary-500"
+            )}
+          >
+            <Filter className="w-4 h-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-primary-500 text-white text-xs flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Filter Panel */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="pt-4 mt-4 border-t border-dark-700/50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Status Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Status</label>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUSES.map(status => (
+                      <button
+                        key={status}
+                        onClick={() => {
+                          const newStatus = leadFilters.status.includes(status)
+                            ? leadFilters.status.filter(s => s !== status)
+                            : [...leadFilters.status, status];
+                          setLeadFilters({ status: newStatus });
+                        }}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all",
+                          leadFilters.status.includes(status)
+                            ? getStatusColor(status)
+                            : "bg-dark-800/50 text-dark-400 hover:text-white"
+                        )}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Source Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Source</label>
+                  <div className="flex flex-wrap gap-2">
+                    {SOURCES.map(source => (
+                      <button
+                        key={source}
+                        onClick={() => {
+                          const newSource = leadFilters.source.includes(source)
+                            ? leadFilters.source.filter(s => s !== source)
+                            : [...leadFilters.source, source];
+                          setLeadFilters({ source: newSource });
+                        }}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-xs font-medium transition-all",
+                          leadFilters.source.includes(source)
+                            ? getSourceColor(source)
+                            : "bg-dark-800/50 text-dark-400 hover:text-white"
+                        )}
+                      >
+                        {formatSource(source)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Priority Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Priority</label>
+                  <select
+                    value={leadFilters.priority}
+                    onChange={(e) => setLeadFilters({ priority: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="">All Priorities</option>
+                    {PRIORITIES.map(priority => (
+                      <option key={priority} value={priority} className="capitalize">
+                        {priority}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Range */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-dark-300">Date Range</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={leadFilters.dateFrom}
+                      onChange={(e) => setLeadFilters({ dateFrom: e.target.value })}
+                      className="input-field flex-1"
+                    />
+                    <input
+                      type="date"
+                      value={leadFilters.dateTo}
+                      onChange={(e) => setLeadFilters({ dateTo: e.target.value })}
+                      className="input-field flex-1"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Reset Filters */}
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={resetLeadFilters}
+                  className="mt-4 text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" />
+                  Clear all filters
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Bulk Actions */}
+      <AnimatePresence>
+        {selectedLeads.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="glass-card p-4 flex items-center justify-between"
+          >
+            <span className="text-sm text-dark-300">
+              <span className="text-white font-medium">{selectedLeads.length}</span> leads selected
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => bulkDeleteMutation.mutate(selectedLeads)}
+                className="px-4 py-2 rounded-xl bg-danger-500/20 text-danger-400 hover:bg-danger-500/30 transition-colors flex items-center gap-2 text-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Selected
+              </button>
+              <button
+                onClick={clearSelectedLeads}
+                className="px-4 py-2 rounded-xl bg-dark-800/50 text-dark-300 hover:text-white transition-colors text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Table */}
+      <div className="glass-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-dark-700/50">
+                <th className="p-4 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeads.length === leads.length && leads.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500"
+                  />
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('first_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Name
+                    {sortBy === 'first_name' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('email')}
+                >
+                  <div className="flex items-center gap-1">
+                    Contact
+                    {sortBy === 'email' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('source')}
+                >
+                  <div className="flex items-center gap-1">
+                    Source
+                    {sortBy === 'source' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center gap-1">
+                    Status
+                    {sortBy === 'status' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('created_at')}
+                >
+                  <div className="flex items-center gap-1">
+                    Created
+                    {sortBy === 'created_at' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th className="p-4 text-right text-dark-400 text-sm font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                // Loading skeleton
+                [...Array(5)].map((_, i) => (
+                  <tr key={i} className="table-row">
+                    <td className="p-4"><div className="skeleton w-4 h-4 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-32 h-10 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-40 h-8 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-24 h-6 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
+                  </tr>
+                ))
+              ) : leads.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="p-12 text-center text-dark-400">
+                    <div className="flex flex-col items-center">
+                      <Search className="w-12 h-12 mb-4 opacity-50" />
+                      <p className="text-lg font-medium">No leads found</p>
+                      <p className="text-sm mt-1">Try adjusting your filters or add a new lead</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                leads.map((lead) => (
+                  <tr key={lead.id} className="table-row">
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeads.includes(lead.id)}
+                        onChange={() => toggleLeadSelection(lead.id)}
+                        className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500"
+                      />
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500/30 to-accent-500/30 flex items-center justify-center text-white font-medium text-sm">
+                          {getInitials(lead.first_name, lead.last_name)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">
+                            {getFullName(lead.first_name, lead.last_name)}
+                          </p>
+                          {lead.company && (
+                            <p className="text-xs text-dark-400 flex items-center gap-1">
+                              <Building2 className="w-3 h-3" />
+                              {lead.company}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="space-y-1">
+                        {lead.email && (
+                          <p className="text-sm text-dark-300 flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-dark-500" />
+                            {lead.email}
+                          </p>
+                        )}
+                        {lead.phone && (
+                          <p className="text-sm text-dark-400 flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-dark-500" />
+                            {formatPhone(lead.phone)}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className={cn("badge", getSourceColor(lead.source))}>
+                        {formatSource(lead.source)}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className={cn("badge", getStatusColor(lead.status))}>
+                        {lead.status}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="text-sm">
+                        <p className="text-dark-300">{formatDate(lead.created_at)}</p>
+                        <p className="text-xs text-dark-500">{formatRelativeTime(lead.created_at)}</p>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openModal('viewLead', lead)}
+                          className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
+                          title="View details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openModal('editLead', lead)}
+                          className="p-2 rounded-lg text-dark-400 hover:text-primary-400 hover:bg-primary-500/10 transition-colors"
+                          title="Edit lead"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openModal('deleteConfirm', lead.id)}
+                          className="p-2 rounded-lg text-dark-400 hover:text-danger-400 hover:bg-danger-500/10 transition-colors"
+                          title="Delete lead"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="p-4 border-t border-dark-700/50 flex items-center justify-between">
+            <p className="text-sm text-dark-400">
+              Showing {((page - 1) * 20) + 1} to {Math.min(page * 20, pagination.totalCount)} of {pagination.totalCount}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg border border-dark-600 text-dark-400 hover:text-white hover:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              {[...Array(Math.min(5, pagination.totalPages))].map((_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={cn(
+                      "w-10 h-10 rounded-lg font-medium transition-colors",
+                      page === pageNum
+                        ? "bg-primary-500 text-white"
+                        : "border border-dark-600 text-dark-400 hover:text-white hover:border-primary-500"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                disabled={page === pagination.totalPages}
+                className="p-2 rounded-lg border border-dark-600 text-dark-400 hover:text-white hover:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      <LeadModal
+        isOpen={modals.createLead || !!modals.editLead}
+        lead={modals.editLead}
+        onClose={() => {
+          closeModal('createLead');
+          closeModal('editLead');
+        }}
+      />
+
+      <LeadDetailModal
+        lead={modals.viewLead}
+        onClose={() => closeModal('viewLead')}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {modals.deleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => closeModal('deleteConfirm')}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass-card p-6 w-full max-w-md"
+            >
+              <h3 className="text-xl font-semibold text-white mb-4">Delete Lead</h3>
+              <p className="text-dark-300 mb-6">
+                Are you sure you want to delete this lead? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => closeModal('deleteConfirm')}
+                  className="px-4 py-2 rounded-xl bg-dark-800/50 text-dark-300 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteMutation.mutate(modals.deleteConfirm)}
+                  disabled={deleteMutation.isLoading}
+                  className="px-4 py-2 rounded-xl bg-danger-500 text-white hover:bg-danger-600 transition-colors flex items-center gap-2"
+                >
+                  {deleteMutation.isLoading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export default Leads;
