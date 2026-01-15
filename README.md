@@ -4,6 +4,14 @@ A modern lead management and automation testing dashboard built with React and N
 
 ![Lead Pipeline Dashboard](https://via.placeholder.com/1200x600/0f172a/0ea5e9?text=Lead+Pipeline+Platform)
 
+## 🔗 Webhook Endpoints (Production)
+
+```
+POST https://leadgenwebhook-production.up.railway.app/api/webhooks/meta
+POST https://leadgenwebhook-production.up.railway.app/api/webhooks/calcom
+POST https://leadgenwebhook-production.up.railway.app/api/webhooks/test
+```
+
 ## Features
 
 ### 📊 Dashboard
@@ -165,25 +173,58 @@ POST /api/webhooks/simulate/calcom # Simulate Cal.com webhook
 3. Select events: `BOOKING_CREATED`, `BOOKING_RESCHEDULED`
 4. Copy the signing secret to `CALCOM_WEBHOOK_SECRET`
 
-## Deployment
+## Deployment (Railway)
 
-### Frontend (Netlify)
+This project is configured for **one-click deployment on Railway**.
 
-1. Connect your repository to Netlify
-2. Set build command: `cd frontend && npm run build`
-3. Set publish directory: `frontend/dist`
-4. Add environment variable: `VITE_API_URL=https://your-backend-url.com/api`
+### Deploy to Railway
 
-### Backend (Railway/Render/Fly.io)
+1. Go to [railway.app](https://railway.app)
+2. Click **New Project** → **Deploy from GitHub repo**
+3. Select `thecafetron-ctrl/leadgenwebhook`
+4. Railway auto-detects the configuration from `railway.json`
+5. Set environment variables:
+   ```
+   NODE_ENV=production
+   ```
+6. Deploy! 🚀
 
-1. Deploy the backend folder as a Node.js app
-2. Set `NODE_ENV=production`
-3. Configure all environment variables
-4. Update `FRONTEND_URL` for CORS
+### Your Production URLs
+
+Once deployed, your app will be available at:
+```
+Dashboard: https://leadgenwebhook-production.up.railway.app
+```
+
+### Webhook Endpoints for External Services
+
+**Meta Instant Forms:**
+```
+POST https://leadgenwebhook-production.up.railway.app/api/webhooks/meta
+GET  https://leadgenwebhook-production.up.railway.app/api/webhooks/meta (verification)
+Verify Token: lead_pipeline_verify
+```
+
+**Cal.com:**
+```
+POST https://leadgenwebhook-production.up.railway.app/api/webhooks/calcom
+```
+
+**Custom/Test:**
+```
+POST https://leadgenwebhook-production.up.railway.app/api/webhooks/test
+```
+
+### Alternative: Netlify + Railway
+
+If you prefer Netlify for frontend:
+1. Deploy frontend to Netlify (it will use `netlify.toml`)
+2. Deploy backend to Railway
+3. Update Netlify env: `VITE_API_URL=https://your-railway-backend.up.railway.app/api`
 
 ### Database Migration to PostgreSQL
 
-For production, migrate from SQLite to PostgreSQL:
+For production with high traffic, migrate from SQLite to PostgreSQL:
 
 1. Install `pg` package
 2. Update `DATABASE_URL` environment variable

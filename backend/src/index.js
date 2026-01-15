@@ -5,14 +5,20 @@
  * - RESTful API for lead management
  * - Webhook endpoints for external integrations
  * - Real-time statistics and logging
+ * - Static file serving for frontend (production)
  * 
  * Environment Variables:
- * - PORT: Server port (default: 3001)
+ * - PORT: Server port (default: 3002)
  * - NODE_ENV: Environment (development/production)
  * - FRONTEND_URL: Frontend URL for CORS
  * - WEBHOOK_SECRET: Secret for webhook validation
  * - META_APP_SECRET: Meta/Facebook app secret
  * - CALCOM_WEBHOOK_SECRET: Cal.com webhook secret
+ * 
+ * Webhook Endpoints (Railway):
+ * - POST https://leadgenwebhook-production.up.railway.app/api/webhooks/meta
+ * - POST https://leadgenwebhook-production.up.railway.app/api/webhooks/calcom
+ * - POST https://leadgenwebhook-production.up.railway.app/api/webhooks/test
  */
 
 import express from 'express';
@@ -21,6 +27,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 // Load environment variables
@@ -40,6 +47,9 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const isDev = process.env.NODE_ENV !== 'production';
 
+// Frontend dist path (for production)
+const FRONTEND_DIST = path.join(__dirname, '../../frontend/dist');
+
 // ============================================
 // MIDDLEWARE CONFIGURATION
 // ============================================
@@ -54,7 +64,11 @@ app.use(helmet({
 const corsOptions = {
   origin: isDev 
     ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
-    : process.env.FRONTEND_URL?.split(',') || [],
+    : [
+        'https://leadgenwebhook-production.up.railway.app',
+        'https://leadgenwebhook.up.railway.app',
+        process.env.FRONTEND_URL
+      ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Secret']
@@ -161,16 +175,41 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // ============================================
+// STATIC FILE SERVING (Production)
+// ============================================
+
+// Serve frontend static files in production
+if (!isDev && fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+  
+  // SPA fallback - serve index.html for all non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+  
+  console.log('✅ Serving frontend from:', FRONTEND_DIST);
+}
+
+// ============================================
 // ERROR HANDLING
 // ============================================
 
-// 404 handler
+// 404 handler for API routes
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Not Found',
-    message: `Cannot ${req.method} ${req.originalUrl}`
-  });
+  // Only return JSON 404 for API routes
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({
+      success: false,
+      error: 'Not Found',
+      message: `Cannot ${req.method} ${req.originalUrl}`
+    });
+  }
+  // For non-API routes in dev, return simple 404
+  res.status(404).send('Not Found');
 });
 
 // Global error handler

@@ -7,8 +7,11 @@
 
 import axios from 'axios';
 
-// API base URL - uses Vite proxy in development
+// API base URL - uses Vite proxy in development, relative path in production
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Railway production URL for reference:
+// https://leadgenwebhook-production.up.railway.app/api
 
 // Create axios instance with default config
 const api = axios.create({
