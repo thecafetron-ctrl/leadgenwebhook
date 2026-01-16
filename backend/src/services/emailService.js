@@ -28,8 +28,10 @@ let emailAccounts = [];
  */
 export function initEmailService() {
   const host = process.env.SMTP_HOST || 'mail.spacemail.com';
-  const port = parseInt(process.env.SMTP_PORT) || 465;
-  const secure = process.env.SMTP_SECURE !== 'false'; // Default to true for port 465
+  // Try port 587 (STARTTLS) first, then fall back to 465 (SSL)
+  const port = parseInt(process.env.SMTP_PORT) || 587;
+  // secure should be false for port 587 (STARTTLS), true for port 465
+  const secure = port === 465;
 
   console.log(`📧 Initializing email with: host=${host}, port=${port}, secure=${secure}`);
 
