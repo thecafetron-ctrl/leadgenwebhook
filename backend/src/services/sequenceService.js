@@ -316,6 +316,140 @@ export async function onMeetingCompleted(leadId) {
 }
 
 /**
+ * Manually send a specific step to a lead
+ * TAMPERPROOF: Won't duplicate - if already sent, skips. Auto will move to next.
+ */
+export async function manualSendStep(leadId, stepId) {
+  // Get step details
+  const stepResult = await query('SELECT * FROM sequence_steps WHERE id = $1', [stepId]);
+  const step = stepResult.rows[0];
+  if (!step) throw new Error('Step not found');
+  
+  // Get lead details
+  const leadResult = await query('SELECT * FROM leads WHERE id = $1', [leadId]);
+  const lead = leadResult.rows[0];
+  if (!lead) throw new Error('Lead not found');
+  
+  // Check if already sent
+  const alreadySent = await query(`
+    SELECT id FROM sent_messages 
+    WHERE lead_id = $1 AND sequence_step_id = $2
+  `, [leadId, stepId]);
+  
+  if (alreadySent.rows.length > 0) {
+    return { 
+      success: false, 
+      message: 'Already sent - automatic sequence will skip to next step',
+      alreadySent: true 
+    };
+  }
+  
+  // Get enrollment
+  const enrollmentResult = await query(`
+    SELECT ls.* FROM lead_sequences ls
+    JOIN sequences s ON ls.sequence_id = s.id
+    WHERE ls.lead_id = $1 AND s.id = $2
+  `, [leadId, step.sequence_id]);
+  
+  const enrollment = enrollmentResult.rows[0];
+  
+  // Check for value email (randomized)
+  let emailSubject = step.email_subject;
+  let emailBody = step.email_body;
+  let valueEmailId = null;
+  
+  if (step.name.toLowerCase().includes('value') || !emailSubject) {
+    const valueEmail = await getNextValueEmailForLead(leadId);
+    if (valueEmail) {
+      emailSubject = valueEmail.subject;
+      emailBody = valueEmail.body;
+      valueEmailId = valueEmail.id;
+    }
+  }
+  
+  // Substitute variables
+  const content = {
+    subject: emailSubject,
+    body: emailBody
+  };
+  
+  for (const [key, val] of Object.entries(content)) {
+    if (val) {
+      content[key] = val
+        .replace(/\{\{first_name\}\}/gi, lead.first_name || 'there')
+        .replace(/\{\{last_name\}\}/gi, lead.last_name || '')
+        .replace(/\{\{email\}\}/gi, lead.email || '')
+        .replace(/\{\{phone\}\}/gi, lead.phone || '');
+    }
+  }
+  
+  let result = { success: false };
+  
+  // Send email
+  if ((step.channel === 'email' || step.channel === 'both') && lead.email) {
+    result = await sendEmail({
+      to: lead.email,
+      subject: content.subject,
+      html: content.body,
+      text: content.body?.replace(/<[^>]*>/g, '')
+    });
+  }
+  
+  // Send WhatsApp
+  if ((step.channel === 'whatsapp' || step.channel === 'both') && lead.phone && step.whatsapp_message) {
+    const waContent = step.whatsapp_message
+      .replace(/\{\{first_name\}\}/gi, lead.first_name || 'there');
+    await sendWhatsApp({ phone: lead.phone, message: waContent });
+  }
+  
+  // Record sent message
+  const metadata = valueEmailId ? JSON.stringify({ value_email_id: valueEmailId, manual: true }) : JSON.stringify({ manual: true });
+  
+  await query(`
+    INSERT INTO sent_messages (
+      lead_id, lead_sequence_id, sequence_step_id, channel, message_type,
+      subject, body, status, metadata, sent_at
+    ) VALUES ($1, $2, $3, $4, 'sequence', $5, $6, 'sent', $7, NOW())
+  `, [
+    leadId,
+    enrollment?.id || null,
+    stepId,
+    step.channel,
+    content.subject,
+    content.body,
+    metadata
+  ]);
+  
+  // Cancel this from queue if pending (auto will skip)
+  if (enrollment) {
+    await query(`
+      UPDATE message_queue 
+      SET status = 'sent'
+      WHERE lead_sequence_id = $1 AND sequence_step_id = $2 AND status = 'pending'
+    `, [enrollment.id, stepId]);
+    
+    // Update current step
+    await query(`
+      UPDATE lead_sequences 
+      SET current_step = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [step.step_order, enrollment.id]);
+  }
+  
+  // Update lead's last_contacted_at
+  await query('UPDATE leads SET last_contacted_at = NOW() WHERE id = $1', [leadId]);
+  
+  console.log(`✅ Manual send: ${step.name} to ${lead.email}`);
+  
+  return {
+    success: true,
+    message: `Sent "${step.name}" to ${lead.email}`,
+    channel: step.channel,
+    stepOrder: step.step_order
+  };
+}
+
+/**
  * Cancel a specific sequence for a lead
  */
 export async function cancelLeadSequence(leadId, sequenceSlug, reason = null) {
@@ -707,6 +841,7 @@ export default {
   getSequenceSteps,
   updateSequenceStep,
   enrollLead,
+  manualSendStep,
   onMeetingBooked,
   onNoShow,
   onMeetingCompleted,

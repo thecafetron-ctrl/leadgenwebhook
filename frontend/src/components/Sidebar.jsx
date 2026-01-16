@@ -15,7 +15,8 @@ import {
   Mail,
   MessageSquare,
   Settings,
-  HelpCircle
+  HelpCircle,
+  GitBranch
 } from 'lucide-react';
 import { useAppStore } from '../lib/store';
 import { cn } from '../lib/utils';
@@ -32,6 +33,12 @@ const mainNavItems = [
     icon: Users, 
     label: 'Leads',
     description: 'Manage contacts'
+  },
+  { 
+    path: '/pipeline', 
+    icon: GitBranch, 
+    label: 'Pipeline Map',
+    description: 'Visual email flow'
   },
   { 
     path: '/sequences', 

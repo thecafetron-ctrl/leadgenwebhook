@@ -64,6 +64,41 @@ router.get('/:slug', async (req, res) => {
 });
 
 /**
+ * GET /api/sequences/:slug/steps
+ * Get steps for a sequence (for pipeline map)
+ */
+router.get('/:slug/steps', async (req, res) => {
+  try {
+    const sequence = await SequenceService.getSequenceBySlug(req.params.slug);
+    if (!sequence) {
+      return res.status(404).json({ success: false, error: 'Sequence not found' });
+    }
+    const steps = await SequenceService.getSequenceSteps(sequence.id);
+    res.json({ success: true, steps });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/sequences/:slug/leads
+ * Get leads enrolled in a sequence with their current step
+ */
+router.get('/:slug/leads', async (req, res) => {
+  try {
+    const { page = 1, limit = 100, status = 'active' } = req.query;
+    const data = await SequenceService.getLeadSequenceBoard(req.params.slug, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status: status === 'all' ? null : status
+    });
+    res.json({ success: true, leads: data.leads, pagination: data.pagination });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/sequences/:slug/board
  * Get leads board for a sequence
  */
@@ -117,6 +152,27 @@ router.post('/enroll', async (req, res) => {
     
     res.json({ success: true, data: enrollment });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/sequences/manual-send
+ * Manually trigger sending a specific step to a lead
+ * This is TAMPERPROOF - it won't duplicate sends and auto will skip to next
+ */
+router.post('/manual-send', async (req, res) => {
+  try {
+    const { leadId, stepId } = req.body;
+    
+    if (!leadId || !stepId) {
+      return res.status(400).json({ success: false, error: 'leadId and stepId required' });
+    }
+    
+    const result = await SequenceService.manualSendStep(leadId, stepId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Manual send error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
