@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WhatsApp QR Code</title>
+    <style>
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            flex-direction: column;
+            gap: 20px;
+        }
+        h1 {
+            color: #25D366;
+            margin: 0;
+        }
+        p {
+            color: #888;
+            margin: 0;
+        }
+        img {
+            border: 8px solid white;
+            border-radius: 12px;
+        }
+        button {
+            background: #25D366;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #128C7E;
+        }
+    </style>
+</head>
+<body>
+    <h1>Scan with WhatsApp</h1>
+    <p>Open WhatsApp → Linked Devices → Link a Device</p>
+    <img id="qr" src="" alt="QR Code">
+    <button onclick="refresh()">Refresh QR Code</button>
+    <p id="status" style="color: #25D366;"></p>
+    
+    <script>
+        async function fetchQR() {
+            document.getElementById('status').textContent = 'Loading...';
+            try {
+                const res = await fetch('http://localhost:8080/instance/connect/lead', {
+                    headers: { 'apikey': 'evo_api_key_secure_2026' }
+                });
+                const data = await res.json();
+                if (data.base64) {
+                    document.getElementById('qr').src = data.base64;
+                    document.getElementById('status').textContent = 'QR Code loaded! Scan now.';
+                } else {
+                    document.getElementById('status').textContent = 'Error: ' + JSON.stringify(data);
+                }
+            } catch (e) {
+                document.getElementById('status').textContent = 'Error: ' + e.message;
+            }
+        }
+        
+        function refresh() {
+            fetchQR();
+        }
+        
+        fetchQR();
+    </script>
+</body>
+</html>
