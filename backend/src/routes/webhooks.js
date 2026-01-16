@@ -301,16 +301,49 @@ router.post('/meta', async (req, res) => {
           const leadgenData = change.value;
           console.log('🎯 New lead received! Leadgen ID:', leadgenData.leadgen_id);
           
-          // In production, you would fetch the lead data from Meta Graph API
-          // For now, we create a lead with the leadgen_id
-          // 
-          // To implement full Meta integration:
-          // 1. Use the leadgen_id to fetch lead details via Graph API
-          // 2. GET https://graph.facebook.com/v18.0/{leadgen_id}
-          //    ?access_token={page_access_token}
-          //    &fields=created_time,id,ad_id,form_id,field_data
+          let leadInfo = {
+            first_name: null,
+            last_name: null,
+            email: null,
+            phone: null
+          };
+          
+          // Try to fetch lead data from Meta Graph API if token is configured
+          const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
+          if (pageAccessToken && leadgenData.leadgen_id) {
+            try {
+              const graphUrl = `https://graph.facebook.com/v18.0/${leadgenData.leadgen_id}?access_token=${pageAccessToken}&fields=created_time,id,ad_id,form_id,field_data`;
+              const response = await fetch(graphUrl);
+              const graphData = await response.json();
+              
+              console.log('📊 Graph API response:', JSON.stringify(graphData, null, 2));
+              
+              if (graphData.field_data) {
+                for (const field of graphData.field_data) {
+                  const name = field.name.toLowerCase();
+                  const value = field.values?.[0] || '';
+                  
+                  if (name.includes('email')) leadInfo.email = value;
+                  else if (name.includes('phone') || name.includes('tel')) leadInfo.phone = value;
+                  else if (name.includes('first') && name.includes('name')) leadInfo.first_name = value;
+                  else if (name.includes('last') && name.includes('name')) leadInfo.last_name = value;
+                  else if (name === 'full_name' || name === 'name') {
+                    const parts = value.split(' ');
+                    leadInfo.first_name = parts[0];
+                    leadInfo.last_name = parts.slice(1).join(' ');
+                  }
+                }
+              }
+            } catch (fetchError) {
+              console.error('⚠️ Failed to fetch from Graph API:', fetchError.message);
+            }
+          }
           
           const lead = Lead.createLead({
+            first_name: leadInfo.first_name,
+            last_name: leadInfo.last_name,
+            email: leadInfo.email,
+            phone: leadInfo.phone,
             source: 'meta_forms',
             source_id: leadgenData.leadgen_id,
             campaign_id: leadgenData.form_id,
@@ -318,10 +351,9 @@ router.post('/meta', async (req, res) => {
               meta_form_id: leadgenData.form_id,
               meta_page_id: leadgenData.page_id,
               meta_leadgen_id: leadgenData.leadgen_id,
-              meta_created_time: leadgenData.created_time,
-              needs_graph_api_fetch: true
+              meta_created_time: leadgenData.created_time
             },
-            notes: 'Lead from Meta Instant Forms - fetch details from Graph API'
+            notes: leadInfo.email ? 'Lead from Meta Instant Forms' : 'Lead from Meta - add META_PAGE_ACCESS_TOKEN to fetch details'
           });
           
           leadsCreated.push(lead);
