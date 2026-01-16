@@ -1,5 +1,5 @@
 /**
- * Lead Routes
+ * Lead Routes - PostgreSQL Version
  * 
  * RESTful API endpoints for lead management.
  * All endpoints are prefixed with /api/leads
@@ -8,7 +8,6 @@
 import { Router } from 'express';
 import Lead from '../models/Lead.js';
 import { leadSchema, leadQuerySchema, validateBody, validateQuery } from '../middleware/validation.js';
-import { z } from 'zod';
 
 const router = Router();
 
@@ -20,13 +19,12 @@ router.get('/', validateQuery(leadQuerySchema), async (req, res) => {
   try {
     const options = {
       ...req.query,
-      // Parse comma-separated values for arrays
       status: req.query.status?.split(','),
       source: req.query.source?.split(','),
       tags: req.query.tags?.split(',')
     };
 
-    const result = Lead.getLeads(options);
+    const result = await Lead.getLeads(options);
     
     res.json({
       success: true,
@@ -49,7 +47,7 @@ router.get('/', validateQuery(leadQuerySchema), async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const stats = Lead.getLeadStats();
+    const stats = await Lead.getLeadStats();
     
     res.json({
       success: true,
@@ -66,12 +64,35 @@ router.get('/stats', async (req, res) => {
 });
 
 /**
+ * GET /api/leads/recent
+ * Get recent leads
+ */
+router.get('/recent', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const leads = await Lead.getRecentLeads(limit);
+    
+    res.json({
+      success: true,
+      data: leads
+    });
+  } catch (error) {
+    console.error('Error fetching recent leads:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recent leads',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/leads/:id
  * Get a single lead by ID
  */
 router.get('/:id', async (req, res) => {
   try {
-    const lead = Lead.getLeadById(req.params.id);
+    const lead = await Lead.getLeadById(req.params.id);
     
     if (!lead) {
       return res.status(404).json({
@@ -95,44 +116,12 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * GET /api/leads/:id/activities
- * Get activities for a lead
- */
-router.get('/:id/activities', async (req, res) => {
-  try {
-    const lead = Lead.getLeadById(req.params.id);
-    
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        error: 'Lead not found'
-      });
-    }
-    
-    const limit = parseInt(req.query.limit) || 50;
-    const activities = Lead.getLeadActivities(req.params.id, limit);
-    
-    res.json({
-      success: true,
-      data: activities
-    });
-  } catch (error) {
-    console.error('Error fetching lead activities:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch lead activities',
-      message: error.message
-    });
-  }
-});
-
-/**
  * POST /api/leads
  * Create a new lead
  */
 router.post('/', validateBody(leadSchema), async (req, res) => {
   try {
-    const lead = Lead.createLead(req.body);
+    const lead = await Lead.createLead(req.body);
     
     res.status(201).json({
       success: true,
@@ -142,8 +131,7 @@ router.post('/', validateBody(leadSchema), async (req, res) => {
   } catch (error) {
     console.error('Error creating lead:', error);
     
-    // Handle unique constraint violation
-    if (error.message?.includes('UNIQUE constraint failed')) {
+    if (error.message?.includes('duplicate key')) {
       return res.status(409).json({
         success: false,
         error: 'Lead already exists with this email and source'
@@ -164,7 +152,7 @@ router.post('/', validateBody(leadSchema), async (req, res) => {
  */
 router.put('/:id', validateBody(leadSchema.partial()), async (req, res) => {
   try {
-    const lead = Lead.updateLead(req.params.id, req.body);
+    const lead = await Lead.updateLead(req.params.id, req.body);
     
     res.json({
       success: true,
@@ -195,7 +183,7 @@ router.put('/:id', validateBody(leadSchema.partial()), async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const deleted = Lead.deleteLead(req.params.id);
+    const deleted = await Lead.deleteLead(req.params.id);
     
     if (!deleted) {
       return res.status(404).json({
@@ -213,77 +201,6 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to delete lead',
-      message: error.message
-    });
-  }
-});
-
-/**
- * POST /api/leads/bulk/update
- * Bulk update multiple leads
- */
-router.post('/bulk/update', async (req, res) => {
-  try {
-    const { ids, updates } = req.body;
-    
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'ids array is required'
-      });
-    }
-    
-    if (!updates || typeof updates !== 'object') {
-      return res.status(400).json({
-        success: false,
-        error: 'updates object is required'
-      });
-    }
-    
-    const result = Lead.bulkUpdateLeads(ids, updates);
-    
-    res.json({
-      success: true,
-      data: result,
-      message: `${result.length} leads updated successfully`
-    });
-  } catch (error) {
-    console.error('Error bulk updating leads:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to bulk update leads',
-      message: error.message
-    });
-  }
-});
-
-/**
- * POST /api/leads/bulk/delete
- * Bulk delete multiple leads
- */
-router.post('/bulk/delete', async (req, res) => {
-  try {
-    const { ids } = req.body;
-    
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'ids array is required'
-      });
-    }
-    
-    const deletedCount = Lead.bulkDeleteLeads(ids);
-    
-    res.json({
-      success: true,
-      deletedCount,
-      message: `${deletedCount} leads deleted successfully`
-    });
-  } catch (error) {
-    console.error('Error bulk deleting leads:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to bulk delete leads',
       message: error.message
     });
   }

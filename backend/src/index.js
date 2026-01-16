@@ -35,6 +35,7 @@ dotenv.config();
 
 // Import database
 import { initDatabase, closeDatabase } from './database/connection.js';
+import { migrate } from './database/migrate.js';
 
 // Import services
 import { initEmailService } from './services/emailService.js';
@@ -234,9 +235,12 @@ app.use((err, req, res, next) => {
 
 async function startServer() {
   try {
-    // Initialize database (async for sql.js)
+    // Initialize database and run migrations
     await initDatabase();
     console.log('✅ Database connected');
+    
+    await migrate();
+    console.log('✅ Database migrations complete');
 
     // Initialize email service
     initEmailService();

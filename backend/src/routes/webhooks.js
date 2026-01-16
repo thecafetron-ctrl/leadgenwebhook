@@ -1,19 +1,7 @@
 /**
- * Webhook Routes
+ * Webhook Routes - PostgreSQL Version
  * 
  * Endpoints for receiving webhooks from external services.
- * Includes validation, logging, and lead creation.
- * 
- * Supported integrations:
- * - Meta Instant Forms (Facebook/Instagram Lead Ads)
- * - Cal.com (Booking notifications)
- * - Custom/Test webhooks
- * 
- * To add new webhook integrations:
- * 1. Add a new endpoint handler (e.g., POST /api/webhooks/new-service)
- * 2. Implement signature validation if the service supports it
- * 3. Create a transformer function to normalize data to lead format
- * 4. Update the WEBHOOK_SOURCES constant in models
  */
 
 import { Router } from 'express';
@@ -36,7 +24,6 @@ function getClientIP(req) {
 
 /**
  * Helper: Extract lead info from various field formats
- * Handles Meta's field_data array and custom field names
  */
 function extractLeadInfo(fieldData, rawPayload = {}) {
   const info = {
@@ -47,7 +34,6 @@ function extractLeadInfo(fieldData, rawPayload = {}) {
     custom_fields: {}
   };
 
-  // If field_data is an array (Meta format)
   if (Array.isArray(fieldData)) {
     for (const field of fieldData) {
       const name = (field.name || '').toLowerCase().replace(/[_-]/g, ' ');
@@ -55,46 +41,29 @@ function extractLeadInfo(fieldData, rawPayload = {}) {
       
       if (!value) continue;
       
-      // Email detection
       if (name.includes('email') || value.includes('@')) {
         info.email = value;
-      }
-      // Phone detection
-      else if (name.includes('phone') || name.includes('tel') || name.includes('mobile') || name.includes('number') && !name.includes('budget')) {
+      } else if (name.includes('phone') || name.includes('tel') || name.includes('mobile')) {
         info.phone = value;
-      }
-      // Full name detection
-      else if (name === 'full name' || name === 'name' || name === 'fullname') {
+      } else if (name === 'full name' || name === 'name' || name === 'fullname') {
         const parts = value.trim().split(' ');
         info.first_name = parts[0];
         info.last_name = parts.slice(1).join(' ') || null;
-      }
-      // First name detection
-      else if (name.includes('first') && name.includes('name')) {
+      } else if (name.includes('first') && name.includes('name')) {
         info.first_name = value;
-      }
-      // Last name detection
-      else if (name.includes('last') && name.includes('name') || name.includes('surname')) {
+      } else if (name.includes('last') && name.includes('name')) {
         info.last_name = value;
-      }
-      // Store everything else as custom fields
-      else {
+      } else {
         info.custom_fields[field.name || name] = value;
       }
     }
   }
   
-  // Also check raw payload for direct fields
   if (rawPayload) {
     if (!info.email && rawPayload.email) info.email = rawPayload.email;
     if (!info.phone && (rawPayload.phone || rawPayload.phone_number)) info.phone = rawPayload.phone || rawPayload.phone_number;
     if (!info.first_name && rawPayload.first_name) info.first_name = rawPayload.first_name;
     if (!info.last_name && rawPayload.last_name) info.last_name = rawPayload.last_name;
-    if (!info.first_name && rawPayload.name) {
-      const parts = rawPayload.name.trim().split(' ');
-      info.first_name = parts[0];
-      info.last_name = parts.slice(1).join(' ') || null;
-    }
   }
   
   return info;
@@ -105,12 +74,7 @@ function extractLeadInfo(fieldData, rawPayload = {}) {
  */
 function verifyMetaSignature(payload, signature, appSecret) {
   if (!signature || !appSecret) return null;
-  
-  const expectedSignature = crypto
-    .createHmac('sha256', appSecret)
-    .update(payload)
-    .digest('hex');
-  
+  const expectedSignature = crypto.createHmac('sha256', appSecret).update(payload).digest('hex');
   return signature === `sha256=${expectedSignature}`;
 }
 
@@ -119,181 +83,103 @@ function verifyMetaSignature(payload, signature, appSecret) {
  */
 function verifyCalcomSignature(payload, signature, secret) {
   if (!signature || !secret) return null;
-  
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-  
+  const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   return signature === expectedSignature;
 }
 
 /**
  * GET /api/webhooks/logs
- * Get webhook logs with filtering and pagination
  */
 router.get('/logs', validateQuery(webhookLogQuerySchema), async (req, res) => {
   try {
     const options = {
       ...req.query,
-      // Parse comma-separated values for arrays
       source: req.query.source?.split(','),
       status: req.query.status?.split(',')
     };
-
-    const result = WebhookLog.getWebhookLogs(options);
-    
-    res.json({
-      success: true,
-      data: result.logs,
-      pagination: result.pagination
-    });
+    const result = await WebhookLog.getWebhookLogs(options);
+    res.json({ success: true, data: result.logs, pagination: result.pagination });
   } catch (error) {
     console.error('Error fetching webhook logs:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch webhook logs',
-      message: error.message
-    });
+    res.status(500).json({ success: false, error: 'Failed to fetch webhook logs' });
   }
 });
 
 /**
  * GET /api/webhooks/logs/recent
- * Get recent webhook logs
  */
 router.get('/logs/recent', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
-    const logs = WebhookLog.getRecentWebhookLogs(limit);
-    
-    res.json({
-      success: true,
-      data: logs
-    });
+    const logs = await WebhookLog.getRecentWebhookLogs(limit);
+    res.json({ success: true, data: logs });
   } catch (error) {
     console.error('Error fetching recent webhook logs:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch recent webhook logs',
-      message: error.message
-    });
+    res.status(500).json({ success: false, error: 'Failed to fetch recent webhook logs' });
   }
 });
 
 /**
  * GET /api/webhooks/stats
- * Get webhook statistics
  */
 router.get('/stats', async (req, res) => {
   try {
-    const stats = WebhookLog.getWebhookStats();
-    
-    res.json({
-      success: true,
-      data: stats
-    });
+    const stats = await WebhookLog.getWebhookStats();
+    res.json({ success: true, data: stats });
   } catch (error) {
     console.error('Error fetching webhook stats:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch webhook statistics',
-      message: error.message
-    });
+    res.status(500).json({ success: false, error: 'Failed to fetch webhook statistics' });
   }
 });
 
 /**
  * GET /api/webhooks/logs/:id
- * Get a specific webhook log
  */
 router.get('/logs/:id', async (req, res) => {
   try {
-    const log = WebhookLog.getWebhookLogById(req.params.id);
-    
+    const log = await WebhookLog.getWebhookLogById(req.params.id);
     if (!log) {
-      return res.status(404).json({
-        success: false,
-        error: 'Webhook log not found'
-      });
+      return res.status(404).json({ success: false, error: 'Webhook log not found' });
     }
-    
-    res.json({
-      success: true,
-      data: log
-    });
+    res.json({ success: true, data: log });
   } catch (error) {
     console.error('Error fetching webhook log:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch webhook log',
-      message: error.message
-    });
+    res.status(500).json({ success: false, error: 'Failed to fetch webhook log' });
   }
 });
 
 /**
- * GET /api/webhooks/meta
- * Meta webhook verification (for Facebook/Instagram)
- * This is called by Meta when you set up the webhook
+ * GET /api/webhooks/meta - Meta verification
  */
 router.get('/meta', (req, res) => {
   const verifyToken = process.env.META_VERIFY_TOKEN || 'lead_pipeline_verify';
-  
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
   
-  console.log('Meta verification request:', { mode, token, challenge, expectedToken: verifyToken });
+  console.log('Meta verification:', { mode, token, challenge });
   
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('✅ Meta webhook verified successfully');
-    // Meta expects plain text response with just the challenge
+    console.log('✅ Meta webhook verified');
     res.set('Content-Type', 'text/plain');
     res.status(200).send(challenge);
   } else {
-    console.log('❌ Meta webhook verification failed - token mismatch');
+    console.log('❌ Meta verification failed');
     res.status(403).send('Forbidden');
   }
 });
 
 /**
- * POST /api/webhooks/meta
- * Receive Meta Instant Forms webhook
- * 
- * Meta sends lead data in the following format:
- * {
- *   "object": "page",
- *   "entry": [{
- *     "id": "page_id",
- *     "time": 1234567890,
- *     "changes": [{
- *       "field": "leadgen",
- *       "value": {
- *         "form_id": "...",
- *         "leadgen_id": "...",
- *         "created_time": 1234567890,
- *         "page_id": "..."
- *       }
- *     }]
- *   }]
- * }
- * 
- * Note: Meta only sends a notification. You need to fetch the actual lead data
- * using the Graph API with the leadgen_id. For this demo, we simulate the data.
+ * POST /api/webhooks/meta - Receive Meta leads
  */
 router.post('/meta', async (req, res) => {
   const rawBody = JSON.stringify(req.body);
   const signature = req.headers['x-hub-signature-256'];
-  const appSecret = process.env.META_APP_SECRET;
+  const signatureValid = verifyMetaSignature(rawBody, signature, process.env.META_APP_SECRET);
   
-  // Verify signature if secret is configured
-  const signatureValid = verifyMetaSignature(rawBody, signature, appSecret);
+  console.log('📥 Meta webhook:', JSON.stringify(req.body, null, 2));
   
-  console.log('📥 Meta webhook received:', JSON.stringify(req.body, null, 2));
-  
-  // Log the webhook
-  const logId = WebhookLog.createWebhookLog({
+  const logId = await WebhookLog.createWebhookLog({
     source: 'meta_forms',
     endpoint: '/api/webhooks/meta',
     method: 'POST',
@@ -305,48 +191,31 @@ router.post('/meta', async (req, res) => {
     signature_valid: signatureValid
   });
 
-  // Reject if signature validation fails (when secret is configured)
-  if (appSecret && signatureValid === false) {
-    WebhookLog.markWebhookFailed(logId, 'Invalid signature', 401);
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid webhook signature'
-    });
+  if (process.env.META_APP_SECRET && signatureValid === false) {
+    await WebhookLog.markWebhookFailed(logId, 'Invalid signature', 401);
+    return res.status(401).json({ success: false, error: 'Invalid signature' });
   }
 
   try {
-    const { object, entry } = req.body;
+    const { object, entry, field, value } = req.body;
     
-    // Handle direct field/value format (Meta's test webhook format)
-    if (req.body.field && req.body.value) {
-      const { field, value } = req.body;
-      console.log(`📋 Meta ${field} event:`, JSON.stringify(value, null, 2));
-      
-      // Handle leadgen in flat format
+    // Handle flat format
+    if (field && value) {
       if (field === 'leadgen') {
-        console.log('🎯 Processing leadgen from flat format');
+        let leadInfo = extractLeadInfo(value.field_data, value);
         
-        // Extract lead info from field_data if present, or fetch from API
-        let leadInfo = { first_name: null, last_name: null, email: null, phone: null, custom_fields: {} };
-        
-        if (value.field_data) {
-          // field_data is included in payload
-          leadInfo = extractLeadInfo(value.field_data, value);
-        } else if (process.env.META_PAGE_ACCESS_TOKEN && value.leadgen_id) {
-          // Fetch from Graph API
+        if (!value.field_data && process.env.META_PAGE_ACCESS_TOKEN && value.leadgen_id) {
           try {
-            const graphUrl = `https://graph.facebook.com/v18.0/${value.leadgen_id}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}&fields=created_time,id,ad_id,form_id,field_data`;
+            const graphUrl = `https://graph.facebook.com/v18.0/${value.leadgen_id}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}&fields=field_data`;
             const response = await fetch(graphUrl);
             const graphData = await response.json();
-            if (graphData.field_data) {
-              leadInfo = extractLeadInfo(graphData.field_data, value);
-            }
+            if (graphData.field_data) leadInfo = extractLeadInfo(graphData.field_data, value);
           } catch (err) {
-            console.error('Graph API fetch error:', err.message);
+            console.error('Graph API error:', err.message);
           }
         }
         
-        const lead = Lead.createLead({
+        const lead = await Lead.createLead({
           first_name: leadInfo.first_name,
           last_name: leadInfo.last_name,
           email: leadInfo.email,
@@ -358,106 +227,57 @@ router.post('/meta', async (req, res) => {
             ...leadInfo.custom_fields,
             meta_form_id: value.form_id,
             meta_page_id: value.page_id,
-            meta_leadgen_id: value.leadgen_id,
-            meta_ad_id: value.ad_id,
-            meta_adgroup_id: value.adgroup_id,
-            meta_created_time: value.created_time
+            meta_leadgen_id: value.leadgen_id
           },
           notes: 'Lead from Meta Instant Forms'
         });
         
-        WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Lead created from Meta webhook',
-          data: { leadId: lead.id, name: `${leadInfo.first_name || ''} ${leadInfo.last_name || ''}`.trim(), email: leadInfo.email, phone: leadInfo.phone }
-        });
+        await WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
+        return res.status(200).json({ success: true, data: { leadId: lead.id } });
       }
       
-      // Handle other field types (leads_retrieval, etc)
-      WebhookLog.markWebhookProcessed(logId, null, 200, JSON.stringify({ field, event: value.verb || 'received' }));
-      
-      return res.status(200).json({
-        success: true,
-        message: `Received ${field} event`,
-        data: { field, value }
-      });
+      await WebhookLog.markWebhookProcessed(logId, null, 200, `Received ${field} event`);
+      return res.status(200).json({ success: true, message: `Received ${field} event` });
     }
     
-    // Handle standard page webhook format
-    if (object !== 'page' || !entry || entry.length === 0) {
-      // Still accept and log unknown formats
-      console.log('⚠️ Unknown Meta payload format, logging anyway');
-      WebhookLog.markWebhookProcessed(logId, null, 200, 'Unknown format - logged');
-      return res.status(200).json({
-        success: true,
-        message: 'Webhook received and logged'
-      });
+    // Handle nested format
+    if (object !== 'page' || !entry?.length) {
+      await WebhookLog.markWebhookProcessed(logId, null, 200, 'Unknown format - logged');
+      return res.status(200).json({ success: true, message: 'Webhook logged' });
     }
 
     const leadsCreated = [];
     
     for (const pageEntry of entry) {
-      const changes = pageEntry.changes || [];
-      
-      for (const change of changes) {
-        console.log(`📌 Processing change field: ${change.field}`);
-        
-        // Handle leads_retrieval (permission grants)
-        if (change.field === 'leads_retrieval') {
-          console.log('🔑 Leads retrieval permission event:', change.value);
-          // This is just a permission notification, not an actual lead
-          continue;
-        }
-        
-        // Handle actual lead submissions
+      for (const change of (pageEntry.changes || [])) {
         if (change.field === 'leadgen') {
-          const leadgenData = change.value;
-          console.log('🎯 New lead received! Leadgen ID:', leadgenData.leadgen_id);
-          console.log('📦 Payload:', JSON.stringify(leadgenData, null, 2));
+          const data = change.value;
+          let leadInfo = extractLeadInfo(data.field_data, data);
           
-          let leadInfo = { first_name: null, last_name: null, email: null, phone: null, custom_fields: {} };
-          
-          // Check if field_data is already in the payload
-          if (leadgenData.field_data) {
-            console.log('✅ field_data found in payload, extracting...');
-            leadInfo = extractLeadInfo(leadgenData.field_data, leadgenData);
-          } 
-          // Otherwise try to fetch from Graph API
-          else if (process.env.META_PAGE_ACCESS_TOKEN && leadgenData.leadgen_id) {
+          if (!data.field_data && process.env.META_PAGE_ACCESS_TOKEN && data.leadgen_id) {
             try {
-              console.log('🔍 Fetching from Graph API...');
-              const graphUrl = `https://graph.facebook.com/v18.0/${leadgenData.leadgen_id}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}&fields=created_time,id,ad_id,form_id,field_data`;
+              const graphUrl = `https://graph.facebook.com/v18.0/${data.leadgen_id}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}&fields=field_data`;
               const response = await fetch(graphUrl);
               const graphData = await response.json();
-              
-              if (graphData.field_data) {
-                leadInfo = extractLeadInfo(graphData.field_data, leadgenData);
-              }
-            } catch (fetchError) {
-              console.error('⚠️ Failed to fetch from Graph API:', fetchError.message);
+              if (graphData.field_data) leadInfo = extractLeadInfo(graphData.field_data, data);
+            } catch (err) {
+              console.error('Graph API error:', err.message);
             }
           }
           
-          console.log('👤 Extracted lead info:', JSON.stringify(leadInfo, null, 2));
-          
-          const lead = Lead.createLead({
+          const lead = await Lead.createLead({
             first_name: leadInfo.first_name,
             last_name: leadInfo.last_name,
             email: leadInfo.email,
             phone: leadInfo.phone,
             source: 'meta_forms',
-            source_id: leadgenData.leadgen_id,
-            campaign_id: leadgenData.form_id,
+            source_id: data.leadgen_id,
+            campaign_id: data.form_id,
             custom_fields: {
               ...leadInfo.custom_fields,
-              meta_form_id: leadgenData.form_id,
-              meta_page_id: leadgenData.page_id,
-              meta_leadgen_id: leadgenData.leadgen_id,
-              meta_ad_id: leadgenData.ad_id,
-              meta_adgroup_id: leadgenData.adgroup_id,
-              meta_created_time: leadgenData.created_time
+              meta_form_id: data.form_id,
+              meta_page_id: data.page_id,
+              meta_leadgen_id: data.leadgen_id
             },
             notes: 'Lead from Meta Instant Forms'
           });
@@ -467,66 +287,24 @@ router.post('/meta', async (req, res) => {
       }
     }
 
-    WebhookLog.markWebhookProcessed(
-      logId, 
-      leadsCreated[0]?.id,
-      200,
-      JSON.stringify({ leadsCreated: leadsCreated.length })
-    );
-    
-    // Meta expects a 200 response
-    res.status(200).json({
-      success: true,
-      message: `Processed ${leadsCreated.length} leads`
-    });
+    await WebhookLog.markWebhookProcessed(logId, leadsCreated[0]?.id, 200, JSON.stringify({ count: leadsCreated.length }));
+    res.status(200).json({ success: true, message: `Processed ${leadsCreated.length} leads` });
   } catch (error) {
-    console.error('❌ Error processing Meta webhook:', error);
-    WebhookLog.markWebhookFailed(logId, error.message, 500);
-    
-    // Still return 200 to Meta to prevent retries
-    res.status(200).json({
-      success: false,
-      error: 'Internal processing error'
-    });
+    console.error('Meta webhook error:', error);
+    await WebhookLog.markWebhookFailed(logId, error.message, 500);
+    res.status(200).json({ success: false, error: 'Processing error' });
   }
 });
 
 /**
- * POST /api/webhooks/calcom
- * Receive Cal.com webhook
- * 
- * Cal.com webhook payload structure:
- * {
- *   "triggerEvent": "BOOKING_CREATED",
- *   "createdAt": "2024-01-01T00:00:00.000Z",
- *   "payload": {
- *     "title": "Meeting with John",
- *     "startTime": "...",
- *     "endTime": "...",
- *     "attendees": [{
- *       "email": "john@example.com",
- *       "name": "John Doe",
- *       "timeZone": "..."
- *     }],
- *     "organizer": {...},
- *     "responses": {
- *       "name": "John Doe",
- *       "email": "john@example.com",
- *       "phone": "+1234567890"
- *     }
- *   }
- * }
+ * POST /api/webhooks/calcom - Receive Cal.com bookings
  */
 router.post('/calcom', async (req, res) => {
   const rawBody = JSON.stringify(req.body);
   const signature = req.headers['x-cal-signature-256'];
-  const secret = process.env.CALCOM_WEBHOOK_SECRET;
+  const signatureValid = verifyCalcomSignature(rawBody, signature, process.env.CALCOM_WEBHOOK_SECRET);
   
-  // Verify signature if secret is configured
-  const signatureValid = verifyCalcomSignature(rawBody, signature, secret);
-  
-  // Log the webhook
-  const logId = WebhookLog.createWebhookLog({
+  const logId = await WebhookLog.createWebhookLog({
     source: 'calcom',
     endpoint: '/api/webhooks/calcom',
     method: 'POST',
@@ -538,72 +316,46 @@ router.post('/calcom', async (req, res) => {
     signature_valid: signatureValid
   });
 
-  // Reject if signature validation fails (when secret is configured)
-  if (secret && signatureValid === false) {
-    WebhookLog.markWebhookFailed(logId, 'Invalid signature', 401);
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid webhook signature'
-    });
+  if (process.env.CALCOM_WEBHOOK_SECRET && signatureValid === false) {
+    await WebhookLog.markWebhookFailed(logId, 'Invalid signature', 401);
+    return res.status(401).json({ success: false, error: 'Invalid signature' });
   }
 
   try {
     const { triggerEvent, payload } = req.body;
-    
-    // Only process booking-related events
     const validEvents = ['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CONFIRMED'];
     
     if (!validEvents.includes(triggerEvent)) {
-      WebhookLog.markWebhookProcessed(logId, null, 200, 'Event type ignored');
-      return res.status(200).json({
-        success: true,
-        message: `Event ${triggerEvent} ignored`
-      });
+      await WebhookLog.markWebhookProcessed(logId, null, 200, 'Event ignored');
+      return res.status(200).json({ success: true, message: `Event ${triggerEvent} ignored` });
     }
 
-    if (!payload || !payload.attendees || payload.attendees.length === 0) {
-      WebhookLog.markWebhookFailed(logId, 'No attendees in payload', 400);
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid Cal.com webhook payload'
-      });
+    if (!payload?.attendees?.length) {
+      await WebhookLog.markWebhookFailed(logId, 'No attendees', 400);
+      return res.status(400).json({ success: false, error: 'Invalid payload' });
     }
 
     const leadsCreated = [];
     
     for (const attendee of payload.attendees) {
-      // Extract name parts
       const nameParts = (attendee.name || '').split(' ');
-      const firstName = nameParts[0] || null;
-      const lastName = nameParts.slice(1).join(' ') || null;
-      
-      // Get additional responses
       const responses = payload.responses || {};
       
-      // Check if lead already exists
-      const existingLead = Lead.getLeadByEmailAndSource(attendee.email, 'calcom');
+      const existingLead = await Lead.getLeadByEmailAndSource(attendee.email, 'calcom');
       
       if (existingLead) {
-        // Update existing lead with new booking info
-        Lead.updateLead(existingLead.id, {
+        await Lead.updateLead(existingLead.id, {
           custom_fields: {
             ...existingLead.custom_fields,
             last_booking_title: payload.title,
-            last_booking_time: payload.startTime,
-            booking_count: (existingLead.custom_fields?.booking_count || 0) + 1
+            last_booking_time: payload.startTime
           }
-        });
-        Lead.createLeadActivity(existingLead.id, 'booking', `New booking: ${payload.title}`, {
-          event: triggerEvent,
-          booking_title: payload.title,
-          booking_time: payload.startTime
         });
         leadsCreated.push(existingLead);
       } else {
-        // Create new lead
-        const lead = Lead.createLead({
-          first_name: firstName,
-          last_name: lastName,
+        const lead = await Lead.createLead({
+          first_name: nameParts[0] || null,
+          last_name: nameParts.slice(1).join(' ') || null,
           email: attendee.email,
           phone: responses.phone || attendee.phone || null,
           source: 'calcom',
@@ -612,49 +364,29 @@ router.post('/calcom', async (req, res) => {
             calcom_booking_id: payload.uid,
             booking_title: payload.title,
             booking_time: payload.startTime,
-            booking_end_time: payload.endTime,
             timezone: attendee.timeZone,
-            booking_count: 1,
             ...responses
           },
           notes: `Booked via Cal.com: ${payload.title}`
         });
-        
         leadsCreated.push(lead);
       }
     }
 
-    WebhookLog.markWebhookProcessed(
-      logId,
-      leadsCreated[0]?.id,
-      200,
-      JSON.stringify({ leadsProcessed: leadsCreated.length })
-    );
-    
-    res.status(200).json({
-      success: true,
-      message: `Processed ${leadsCreated.length} attendees`,
-      data: leadsCreated.map(l => l.id)
-    });
+    await WebhookLog.markWebhookProcessed(logId, leadsCreated[0]?.id, 200, JSON.stringify({ count: leadsCreated.length }));
+    res.status(200).json({ success: true, message: `Processed ${leadsCreated.length} attendees` });
   } catch (error) {
-    console.error('Error processing Cal.com webhook:', error);
-    WebhookLog.markWebhookFailed(logId, error.message, 500);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal processing error'
-    });
+    console.error('Cal.com webhook error:', error);
+    await WebhookLog.markWebhookFailed(logId, error.message, 500);
+    res.status(500).json({ success: false, error: 'Processing error' });
   }
 });
 
 /**
- * POST /api/webhooks/test
- * Test webhook endpoint for the playground
- * Accepts any payload and creates a lead
+ * POST /api/webhooks/test - Test webhook endpoint
  */
 router.post('/test', async (req, res) => {
-  // Log the webhook
-  const logId = WebhookLog.createWebhookLog({
+  const logId = await WebhookLog.createWebhookLog({
     source: 'test',
     endpoint: '/api/webhooks/test',
     method: 'POST',
@@ -668,165 +400,48 @@ router.post('/test', async (req, res) => {
 
   try {
     const payload = req.body;
+    const nameParts = (payload.name || '').split(' ');
     
-    // Extract lead data from various payload formats
-    let leadData = {};
-    
-    // Support direct lead format
-    if (payload.email || payload.first_name || payload.name) {
-      const nameParts = (payload.name || '').split(' ');
-      leadData = {
-        first_name: payload.first_name || nameParts[0] || null,
-        last_name: payload.last_name || nameParts.slice(1).join(' ') || null,
-        email: payload.email || null,
-        phone: payload.phone || null,
-        company: payload.company || null,
-        job_title: payload.job_title || null,
-        tags: payload.tags || [],
-        custom_fields: payload.custom_fields || {}
-      };
-    }
-    // Support nested data format
-    else if (payload.data) {
-      const data = payload.data;
-      const nameParts = (data.name || '').split(' ');
-      leadData = {
-        first_name: data.first_name || nameParts[0] || null,
-        last_name: data.last_name || nameParts.slice(1).join(' ') || null,
-        email: data.email || null,
-        phone: data.phone || null,
-        company: data.company || null,
-        job_title: data.job_title || null,
-        tags: data.tags || [],
-        custom_fields: data
-      };
-    }
-    // Support Meta-like format
-    else if (payload.entry) {
-      leadData = {
-        source_id: payload.entry[0]?.id,
-        custom_fields: payload
-      };
-    }
-    // Fallback: store entire payload in custom fields
-    else {
-      leadData = {
-        custom_fields: payload
-      };
+    const leadData = {
+      first_name: payload.first_name || nameParts[0] || null,
+      last_name: payload.last_name || nameParts.slice(1).join(' ') || null,
+      email: payload.email || null,
+      phone: payload.phone || null,
+      company: payload.company || null,
+      source: 'api',
+      custom_fields: payload.custom_fields || {},
+      notes: 'Created via test webhook'
+    };
+
+    if (!leadData.email && !leadData.first_name && !leadData.phone) {
+      await WebhookLog.markWebhookFailed(logId, 'No lead data found', 400);
+      return res.status(400).json({ success: false, error: 'No lead data found' });
     }
 
-    // Set source to test
-    leadData.source = 'api';
-    leadData.notes = 'Created via test webhook endpoint';
+    const lead = await Lead.createLead(leadData);
+    await WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
     
-    // Only create lead if we have some useful data
-    if (!leadData.email && !leadData.first_name && !leadData.phone && Object.keys(leadData.custom_fields || {}).length === 0) {
-      WebhookLog.markWebhookFailed(logId, 'No lead data could be extracted', 400);
-      return res.status(400).json({
-        success: false,
-        error: 'No lead data found in payload'
-      });
-    }
-
-    const lead = Lead.createLead(leadData);
-    
-    WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
-    
-    res.status(201).json({
-      success: true,
-      message: 'Test webhook processed successfully',
-      data: lead,
-      webhookLogId: logId
-    });
+    res.status(201).json({ success: true, data: lead, webhookLogId: logId });
   } catch (error) {
-    console.error('Error processing test webhook:', error);
-    WebhookLog.markWebhookFailed(logId, error.message, 500);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process test webhook',
-      message: error.message,
-      webhookLogId: logId
-    });
+    console.error('Test webhook error:', error);
+    await WebhookLog.markWebhookFailed(logId, error.message, 500);
+    res.status(500).json({ success: false, error: 'Processing error' });
   }
 });
 
 /**
- * POST /api/webhooks/simulate/:type
- * Simulate webhook events for testing
- * Supported types: 'meta', 'calcom'
+ * POST /api/webhooks/simulate/:type - Simulate webhooks
  */
 router.post('/simulate/:type', async (req, res) => {
   const { type } = req.params;
   const customData = req.body;
   
-  let simulatedPayload;
-  
-  switch (type) {
-    case 'meta':
-      simulatedPayload = {
-        object: 'page',
-        entry: [{
-          id: customData.page_id || 'simulated_page_123',
-          time: Date.now(),
-          changes: [{
-            field: 'leadgen',
-            value: {
-              form_id: customData.form_id || 'simulated_form_456',
-              leadgen_id: customData.leadgen_id || `lead_${Date.now()}`,
-              created_time: Math.floor(Date.now() / 1000),
-              page_id: customData.page_id || 'simulated_page_123',
-              // Simulated additional data (normally fetched from Graph API)
-              simulated_data: {
-                first_name: customData.first_name || 'John',
-                last_name: customData.last_name || 'Doe',
-                email: customData.email || `test${Date.now()}@example.com`,
-                phone: customData.phone || '+1234567890'
-              }
-            }
-          }]
-        }]
-      };
-      break;
-      
-    case 'calcom':
-      simulatedPayload = {
-        triggerEvent: customData.triggerEvent || 'BOOKING_CREATED',
-        createdAt: new Date().toISOString(),
-        payload: {
-          uid: customData.booking_id || `booking_${Date.now()}`,
-          title: customData.title || 'Discovery Call',
-          startTime: customData.startTime || new Date(Date.now() + 86400000).toISOString(),
-          endTime: customData.endTime || new Date(Date.now() + 86400000 + 1800000).toISOString(),
-          attendees: [{
-            email: customData.email || `test${Date.now()}@example.com`,
-            name: customData.name || 'Jane Smith',
-            timeZone: customData.timezone || 'America/New_York'
-          }],
-          responses: {
-            name: customData.name || 'Jane Smith',
-            email: customData.email || `test${Date.now()}@example.com`,
-            phone: customData.phone || '+1987654321',
-            ...customData.responses
-          }
-        }
-      };
-      break;
-      
-    default:
-      return res.status(400).json({
-        success: false,
-        error: `Unknown simulation type: ${type}. Supported: meta, calcom`
-      });
-  }
-
-  // Log the simulated webhook
-  const logId = WebhookLog.createWebhookLog({
+  const logId = await WebhookLog.createWebhookLog({
     source: `${type}_simulated`,
     endpoint: `/api/webhooks/simulate/${type}`,
     method: 'POST',
     headers: { 'x-simulated': 'true' },
-    payload: simulatedPayload,
+    payload: customData,
     query_params: {},
     ip_address: getClientIP(req),
     user_agent: req.headers['user-agent'],
@@ -837,66 +452,39 @@ router.post('/simulate/:type', async (req, res) => {
     let lead;
     
     if (type === 'meta') {
-      const data = simulatedPayload.entry[0].changes[0].value;
-      const simData = data.simulated_data;
-      
-      lead = Lead.createLead({
-        first_name: simData.first_name,
-        last_name: simData.last_name,
-        email: simData.email,
-        phone: simData.phone,
+      lead = await Lead.createLead({
+        first_name: customData.first_name || 'John',
+        last_name: customData.last_name || 'Doe',
+        email: customData.email || `test${Date.now()}@example.com`,
+        phone: customData.phone || '+1234567890',
         source: 'meta_forms',
-        source_id: data.leadgen_id,
-        campaign_id: data.form_id,
-        custom_fields: {
-          meta_form_id: data.form_id,
-          meta_page_id: data.page_id,
-          simulated: true
-        },
-        notes: 'Simulated Meta Instant Forms lead'
+        source_id: `sim_${Date.now()}`,
+        campaign_id: customData.form_id || 'simulated_form',
+        custom_fields: { simulated: true },
+        notes: 'Simulated Meta lead'
       });
     } else if (type === 'calcom') {
-      const payload = simulatedPayload.payload;
-      const attendee = payload.attendees[0];
-      const nameParts = attendee.name.split(' ');
-      
-      lead = Lead.createLead({
+      const nameParts = (customData.name || 'Jane Smith').split(' ');
+      lead = await Lead.createLead({
         first_name: nameParts[0],
         last_name: nameParts.slice(1).join(' '),
-        email: attendee.email,
-        phone: payload.responses?.phone,
+        email: customData.email || `test${Date.now()}@example.com`,
+        phone: customData.phone || '+1987654321',
         source: 'calcom',
-        source_id: payload.uid,
-        custom_fields: {
-          calcom_booking_id: payload.uid,
-          booking_title: payload.title,
-          booking_time: payload.startTime,
-          simulated: true
-        },
-        notes: 'Simulated Cal.com booking lead'
+        source_id: `sim_${Date.now()}`,
+        custom_fields: { booking_title: customData.title || 'Discovery Call', simulated: true },
+        notes: 'Simulated Cal.com booking'
       });
+    } else {
+      return res.status(400).json({ success: false, error: `Unknown type: ${type}` });
     }
 
-    WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
-    
-    res.status(201).json({
-      success: true,
-      message: `Simulated ${type} webhook processed`,
-      data: {
-        lead,
-        simulatedPayload,
-        webhookLogId: logId
-      }
-    });
+    await WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
+    res.status(201).json({ success: true, data: lead, webhookLogId: logId });
   } catch (error) {
-    console.error('Error processing simulated webhook:', error);
-    WebhookLog.markWebhookFailed(logId, error.message, 500);
-    
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process simulated webhook',
-      message: error.message
-    });
+    console.error('Simulate webhook error:', error);
+    await WebhookLog.markWebhookFailed(logId, error.message, 500);
+    res.status(500).json({ success: false, error: 'Processing error' });
   }
 });
 

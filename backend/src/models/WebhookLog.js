@@ -1,192 +1,147 @@
 /**
- * Webhook Log Model
+ * WebhookLog Model - PostgreSQL Version
  * 
- * Handles logging and retrieval of webhook events.
- * Essential for debugging webhook integrations.
+ * Tracks all incoming webhooks for debugging and analytics.
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne, run } from '../database/connection.js';
-
-/**
- * Valid webhook log statuses
- */
-export const WEBHOOK_STATUSES = ['received', 'processing', 'processed', 'failed'];
+import { query } from '../database/connection.js';
 
 /**
  * Create a new webhook log entry
  */
-export function createWebhookLog(logData) {
+export async function createWebhookLog(data) {
   const id = uuidv4();
-  const now = new Date().toISOString();
-  
   const {
     source,
     endpoint,
-    method = 'POST',
+    method,
     headers = {},
     payload = {},
     query_params = {},
     ip_address = null,
     user_agent = null,
     signature_valid = null
-  } = logData;
+  } = data;
 
   const sql = `
     INSERT INTO webhook_logs (
       id, source, endpoint, method, headers, payload, query_params,
-      status, ip_address, user_agent, signature_valid, received_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ip_address, user_agent, signature_valid, status, received_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    RETURNING id
   `;
 
-  run(sql, [
+  const result = await query(sql, [
     id, source, endpoint, method,
     JSON.stringify(headers),
     JSON.stringify(payload),
     JSON.stringify(query_params),
+    ip_address, user_agent, signature_valid,
     'received',
-    ip_address,
-    user_agent,
-    signature_valid === null ? null : (signature_valid ? 1 : 0),
-    now
+    new Date().toISOString()
   ]);
 
-  return id;
-}
-
-/**
- * Update webhook log status
- */
-export function updateWebhookLog(id, updates) {
-  const setClauses = [];
-  const params = [];
-
-  const allowedFields = ['status', 'response_code', 'response_body', 'error_message', 'lead_id', 'processed_at'];
-
-  for (const [key, value] of Object.entries(updates)) {
-    if (allowedFields.includes(key)) {
-      setClauses.push(`${key} = ?`);
-      params.push(value);
-    }
-  }
-
-  if (setClauses.length === 0) {
-    return getWebhookLogById(id);
-  }
-
-  params.push(id);
-  const sql = `UPDATE webhook_logs SET ${setClauses.join(', ')} WHERE id = ?`;
-  run(sql, params);
-
-  return getWebhookLogById(id);
+  return result.rows[0].id;
 }
 
 /**
  * Mark webhook as processed
  */
-export function markWebhookProcessed(id, leadId = null, responseCode = 200, responseBody = null) {
-  return updateWebhookLog(id, {
-    status: 'processed',
-    lead_id: leadId,
-    response_code: responseCode,
-    response_body: responseBody,
-    processed_at: new Date().toISOString()
-  });
+export async function markWebhookProcessed(id, leadId, responseCode, responseBody) {
+  await query(`
+    UPDATE webhook_logs 
+    SET status = 'processed', 
+        lead_id = $1, 
+        response_code = $2, 
+        response_body = $3,
+        processed_at = $4
+    WHERE id = $5
+  `, [leadId, responseCode, responseBody, new Date().toISOString(), id]);
 }
 
 /**
  * Mark webhook as failed
  */
-export function markWebhookFailed(id, errorMessage, responseCode = 500) {
-  return updateWebhookLog(id, {
-    status: 'failed',
-    error_message: errorMessage,
-    response_code: responseCode,
-    processed_at: new Date().toISOString()
-  });
+export async function markWebhookFailed(id, errorMessage, responseCode = 500) {
+  await query(`
+    UPDATE webhook_logs 
+    SET status = 'failed', 
+        error_message = $1, 
+        response_code = $2,
+        processed_at = $3
+    WHERE id = $4
+  `, [errorMessage, responseCode, new Date().toISOString(), id]);
 }
 
 /**
  * Get webhook log by ID
  */
-export function getWebhookLogById(id) {
-  const log = queryOne('SELECT * FROM webhook_logs WHERE id = ?', [id]);
-  return log ? parseWebhookLog(log) : null;
+export async function getWebhookLogById(id) {
+  const result = await query('SELECT * FROM webhook_logs WHERE id = $1', [id]);
+  return result.rows[0] ? parseLog(result.rows[0]) : null;
 }
 
 /**
  * Get webhook logs with filtering and pagination
  */
-export function getWebhookLogs(options = {}) {
+export async function getWebhookLogs(options = {}) {
   const {
     page = 1,
     limit = 50,
-    sortBy = 'received_at',
-    sortOrder = 'DESC',
     source = null,
     status = null,
     dateFrom = null,
-    dateTo = null,
-    lead_id = null
+    dateTo = null
   } = options;
 
   let sql = 'SELECT * FROM webhook_logs WHERE 1=1';
+  let countSql = 'SELECT COUNT(*) as count FROM webhook_logs WHERE 1=1';
   const params = [];
+  let paramIndex = 1;
 
-  // Source filter
   if (source) {
-    if (Array.isArray(source)) {
-      sql += ` AND source IN (${source.map(() => '?').join(',')})`;
-      params.push(...source);
-    } else {
-      sql += ' AND source = ?';
-      params.push(source);
-    }
+    const sources = Array.isArray(source) ? source : [source];
+    const placeholders = sources.map((_, i) => `$${paramIndex + i}`).join(',');
+    sql += ` AND source IN (${placeholders})`;
+    countSql += ` AND source IN (${placeholders})`;
+    params.push(...sources);
+    paramIndex += sources.length;
   }
 
-  // Status filter
   if (status) {
-    if (Array.isArray(status)) {
-      sql += ` AND status IN (${status.map(() => '?').join(',')})`;
-      params.push(...status);
-    } else {
-      sql += ' AND status = ?';
-      params.push(status);
-    }
+    const statuses = Array.isArray(status) ? status : [status];
+    const placeholders = statuses.map((_, i) => `$${paramIndex + i}`).join(',');
+    sql += ` AND status IN (${placeholders})`;
+    countSql += ` AND status IN (${placeholders})`;
+    params.push(...statuses);
+    paramIndex += statuses.length;
   }
 
-  // Date range filter
   if (dateFrom) {
-    sql += ' AND received_at >= ?';
+    sql += ` AND received_at >= $${paramIndex}`;
+    countSql += ` AND received_at >= $${paramIndex}`;
     params.push(dateFrom);
+    paramIndex++;
   }
   if (dateTo) {
-    sql += ' AND received_at <= ?';
+    sql += ` AND received_at <= $${paramIndex}`;
+    countSql += ` AND received_at <= $${paramIndex}`;
     params.push(dateTo);
+    paramIndex++;
   }
 
-  // Lead ID filter
-  if (lead_id) {
-    sql += ' AND lead_id = ?';
-    params.push(lead_id);
-  }
+  const countResult = await query(countSql, params);
+  const totalCount = parseInt(countResult.rows[0].count);
 
-  // Get total count
-  const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as count');
-  const { count: totalCount } = queryOne(countSql, params);
-
-  // Add sorting
-  const validSortColumns = ['received_at', 'processed_at', 'source', 'status', 'endpoint'];
-  const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'received_at';
-  const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-  sql += ` ORDER BY ${safeSortBy} ${safeSortOrder}`;
-
-  // Add pagination
+  sql += ' ORDER BY received_at DESC';
+  
   const offset = (page - 1) * limit;
-  sql += ' LIMIT ? OFFSET ?';
+  sql += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
   params.push(limit, offset);
 
-  const logs = query(sql, params).map(parseWebhookLog);
+  const result = await query(sql, params);
+  const logs = result.rows.map(parseLog);
 
   return {
     logs,
@@ -203,103 +158,58 @@ export function getWebhookLogs(options = {}) {
 /**
  * Get recent webhook logs
  */
-export function getRecentWebhookLogs(limit = 20) {
-  return query(`
-    SELECT * FROM webhook_logs 
-    ORDER BY received_at DESC 
-    LIMIT ?
-  `, [limit]).map(parseWebhookLog);
+export async function getRecentWebhookLogs(limit = 20) {
+  const result = await query('SELECT * FROM webhook_logs ORDER BY received_at DESC LIMIT $1', [limit]);
+  return result.rows.map(parseLog);
 }
 
 /**
  * Get webhook statistics
  */
-export function getWebhookStats() {
+export async function getWebhookStats() {
   const stats = {};
 
-  // Total webhooks
-  stats.total = queryOne('SELECT COUNT(*) as count FROM webhook_logs').count;
+  const totalResult = await query('SELECT COUNT(*) as count FROM webhook_logs');
+  stats.total = parseInt(totalResult.rows[0].count);
 
-  // By status
-  stats.byStatus = query(`
-    SELECT status, COUNT(*) as count 
-    FROM webhook_logs 
-    GROUP BY status
-  `).reduce((acc, row) => {
-    acc[row.status] = row.count;
+  const sourceResult = await query('SELECT source, COUNT(*) as count FROM webhook_logs GROUP BY source');
+  stats.bySource = sourceResult.rows.reduce((acc, row) => {
+    acc[row.source] = parseInt(row.count);
     return acc;
   }, {});
 
-  // By source
-  stats.bySource = query(`
-    SELECT source, COUNT(*) as count 
-    FROM webhook_logs 
-    GROUP BY source
-  `).reduce((acc, row) => {
-    acc[row.source] = row.count;
+  const statusResult = await query('SELECT status, COUNT(*) as count FROM webhook_logs GROUP BY status');
+  stats.byStatus = statusResult.rows.reduce((acc, row) => {
+    acc[row.status] = parseInt(row.count);
     return acc;
   }, {});
 
-  // Recent webhooks (last 24 hours)
-  stats.last24Hours = queryOne(`
-    SELECT COUNT(*) as count 
-    FROM webhook_logs 
-    WHERE received_at >= datetime('now', '-24 hours')
-  `).count;
-
-  // Today's webhooks
-  stats.today = queryOne(`
-    SELECT COUNT(*) as count 
-    FROM webhook_logs 
-    WHERE date(received_at) = date('now')
-  `).count;
-
-  // Failed webhooks (last 24 hours)
-  stats.failedLast24Hours = queryOne(`
-    SELECT COUNT(*) as count 
-    FROM webhook_logs 
-    WHERE received_at >= datetime('now', '-24 hours') 
-    AND status = 'failed'
-  `).count;
+  const todayResult = await query("SELECT COUNT(*) as count FROM webhook_logs WHERE DATE(received_at) = CURRENT_DATE");
+  stats.todayCount = parseInt(todayResult.rows[0].count);
 
   return stats;
 }
 
 /**
- * Delete old webhook logs (cleanup utility)
+ * Parse log from database row
  */
-export function deleteOldWebhookLogs(daysOld = 30) {
-  const result = run(`
-    DELETE FROM webhook_logs 
-    WHERE received_at < datetime('now', '-${daysOld} days')
-  `);
-  return result.changes;
-}
-
-/**
- * Parse webhook log from database row
- */
-function parseWebhookLog(row) {
+function parseLog(row) {
   if (!row) return null;
-
+  
   return {
     ...row,
-    headers: row.headers ? JSON.parse(row.headers) : {},
-    payload: row.payload ? JSON.parse(row.payload) : {},
-    query_params: row.query_params ? JSON.parse(row.query_params) : {},
-    signature_valid: row.signature_valid === null ? null : Boolean(row.signature_valid)
+    headers: typeof row.headers === 'string' ? JSON.parse(row.headers) : (row.headers || {}),
+    payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {}),
+    query_params: typeof row.query_params === 'string' ? JSON.parse(row.query_params) : (row.query_params || {})
   };
 }
 
 export default {
-  WEBHOOK_STATUSES,
   createWebhookLog,
-  updateWebhookLog,
   markWebhookProcessed,
   markWebhookFailed,
   getWebhookLogById,
   getWebhookLogs,
   getRecentWebhookLogs,
-  getWebhookStats,
-  deleteOldWebhookLogs
+  getWebhookStats
 };
