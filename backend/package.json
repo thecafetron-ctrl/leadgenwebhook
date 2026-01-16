@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "db:migrate": "node src/database/migrate.js",
-    "db:seed-emails": "node src/database/seedEmails.js"
+    "db:seed-emails": "node src/database/seedEmails.js",
+    "db:reset-sequences": "node src/database/resetSequences.js"
   },
   "dependencies": {
     "pg": "^8.11.3",
