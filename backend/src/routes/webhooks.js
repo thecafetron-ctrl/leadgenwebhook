@@ -35,6 +35,72 @@ function getClientIP(req) {
 }
 
 /**
+ * Helper: Extract lead info from various field formats
+ * Handles Meta's field_data array and custom field names
+ */
+function extractLeadInfo(fieldData, rawPayload = {}) {
+  const info = {
+    first_name: null,
+    last_name: null,
+    email: null,
+    phone: null,
+    custom_fields: {}
+  };
+
+  // If field_data is an array (Meta format)
+  if (Array.isArray(fieldData)) {
+    for (const field of fieldData) {
+      const name = (field.name || '').toLowerCase().replace(/[_-]/g, ' ');
+      const value = field.values?.[0] || field.value || '';
+      
+      if (!value) continue;
+      
+      // Email detection
+      if (name.includes('email') || value.includes('@')) {
+        info.email = value;
+      }
+      // Phone detection
+      else if (name.includes('phone') || name.includes('tel') || name.includes('mobile') || name.includes('number') && !name.includes('budget')) {
+        info.phone = value;
+      }
+      // Full name detection
+      else if (name === 'full name' || name === 'name' || name === 'fullname') {
+        const parts = value.trim().split(' ');
+        info.first_name = parts[0];
+        info.last_name = parts.slice(1).join(' ') || null;
+      }
+      // First name detection
+      else if (name.includes('first') && name.includes('name')) {
+        info.first_name = value;
+      }
+      // Last name detection
+      else if (name.includes('last') && name.includes('name') || name.includes('surname')) {
+        info.last_name = value;
+      }
+      // Store everything else as custom fields
+      else {
+        info.custom_fields[field.name || name] = value;
+      }
+    }
+  }
+  
+  // Also check raw payload for direct fields
+  if (rawPayload) {
+    if (!info.email && rawPayload.email) info.email = rawPayload.email;
+    if (!info.phone && (rawPayload.phone || rawPayload.phone_number)) info.phone = rawPayload.phone || rawPayload.phone_number;
+    if (!info.first_name && rawPayload.first_name) info.first_name = rawPayload.first_name;
+    if (!info.last_name && rawPayload.last_name) info.last_name = rawPayload.last_name;
+    if (!info.first_name && rawPayload.name) {
+      const parts = rawPayload.name.trim().split(' ');
+      info.first_name = parts[0];
+      info.last_name = parts.slice(1).join(' ') || null;
+    }
+  }
+  
+  return info;
+}
+
+/**
  * Helper: Verify Meta webhook signature
  */
 function verifyMetaSignature(payload, signature, appSecret) {
@@ -257,33 +323,23 @@ router.post('/meta', async (req, res) => {
       console.log(`📋 Meta ${field} event:`, JSON.stringify(value, null, 2));
       
       // Handle leadgen in flat format
-      if (field === 'leadgen' && value.leadgen_id) {
+      if (field === 'leadgen') {
         console.log('🎯 Processing leadgen from flat format');
         
-        let leadInfo = { first_name: null, last_name: null, email: null, phone: null };
+        // Extract lead info from field_data if present, or fetch from API
+        let leadInfo = { first_name: null, last_name: null, email: null, phone: null, custom_fields: {} };
         
-        // Try to fetch from Graph API
-        const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
-        if (pageAccessToken) {
+        if (value.field_data) {
+          // field_data is included in payload
+          leadInfo = extractLeadInfo(value.field_data, value);
+        } else if (process.env.META_PAGE_ACCESS_TOKEN && value.leadgen_id) {
+          // Fetch from Graph API
           try {
-            const graphUrl = `https://graph.facebook.com/v18.0/${value.leadgen_id}?access_token=${pageAccessToken}&fields=created_time,id,ad_id,form_id,field_data`;
+            const graphUrl = `https://graph.facebook.com/v18.0/${value.leadgen_id}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}&fields=created_time,id,ad_id,form_id,field_data`;
             const response = await fetch(graphUrl);
             const graphData = await response.json();
-            
             if (graphData.field_data) {
-              for (const f of graphData.field_data) {
-                const name = f.name.toLowerCase();
-                const val = f.values?.[0] || '';
-                if (name.includes('email')) leadInfo.email = val;
-                else if (name.includes('phone')) leadInfo.phone = val;
-                else if (name.includes('first')) leadInfo.first_name = val;
-                else if (name.includes('last')) leadInfo.last_name = val;
-                else if (name === 'full_name' || name === 'name') {
-                  const parts = val.split(' ');
-                  leadInfo.first_name = parts[0];
-                  leadInfo.last_name = parts.slice(1).join(' ');
-                }
-              }
+              leadInfo = extractLeadInfo(graphData.field_data, value);
             }
           } catch (err) {
             console.error('Graph API fetch error:', err.message);
@@ -299,6 +355,7 @@ router.post('/meta', async (req, res) => {
           source_id: value.leadgen_id,
           campaign_id: value.form_id,
           custom_fields: {
+            ...leadInfo.custom_fields,
             meta_form_id: value.form_id,
             meta_page_id: value.page_id,
             meta_leadgen_id: value.leadgen_id,
@@ -314,17 +371,12 @@ router.post('/meta', async (req, res) => {
         return res.status(200).json({
           success: true,
           message: 'Lead created from Meta webhook',
-          data: { leadId: lead.id }
+          data: { leadId: lead.id, name: `${leadInfo.first_name || ''} ${leadInfo.last_name || ''}`.trim(), email: leadInfo.email, phone: leadInfo.phone }
         });
       }
       
       // Handle other field types (leads_retrieval, etc)
-      WebhookLog.markWebhookProcessed(
-        logId,
-        null,
-        200,
-        JSON.stringify({ field, event: value.verb || 'received' })
-      );
+      WebhookLog.markWebhookProcessed(logId, null, 200, JSON.stringify({ field, event: value.verb || 'received' }));
       
       return res.status(200).json({
         success: true,
@@ -363,44 +415,32 @@ router.post('/meta', async (req, res) => {
         if (change.field === 'leadgen') {
           const leadgenData = change.value;
           console.log('🎯 New lead received! Leadgen ID:', leadgenData.leadgen_id);
+          console.log('📦 Payload:', JSON.stringify(leadgenData, null, 2));
           
-          let leadInfo = {
-            first_name: null,
-            last_name: null,
-            email: null,
-            phone: null
-          };
+          let leadInfo = { first_name: null, last_name: null, email: null, phone: null, custom_fields: {} };
           
-          // Try to fetch lead data from Meta Graph API if token is configured
-          const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
-          if (pageAccessToken && leadgenData.leadgen_id) {
+          // Check if field_data is already in the payload
+          if (leadgenData.field_data) {
+            console.log('✅ field_data found in payload, extracting...');
+            leadInfo = extractLeadInfo(leadgenData.field_data, leadgenData);
+          } 
+          // Otherwise try to fetch from Graph API
+          else if (process.env.META_PAGE_ACCESS_TOKEN && leadgenData.leadgen_id) {
             try {
-              const graphUrl = `https://graph.facebook.com/v18.0/${leadgenData.leadgen_id}?access_token=${pageAccessToken}&fields=created_time,id,ad_id,form_id,field_data`;
+              console.log('🔍 Fetching from Graph API...');
+              const graphUrl = `https://graph.facebook.com/v18.0/${leadgenData.leadgen_id}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}&fields=created_time,id,ad_id,form_id,field_data`;
               const response = await fetch(graphUrl);
               const graphData = await response.json();
               
-              console.log('📊 Graph API response:', JSON.stringify(graphData, null, 2));
-              
               if (graphData.field_data) {
-                for (const field of graphData.field_data) {
-                  const name = field.name.toLowerCase();
-                  const value = field.values?.[0] || '';
-                  
-                  if (name.includes('email')) leadInfo.email = value;
-                  else if (name.includes('phone') || name.includes('tel')) leadInfo.phone = value;
-                  else if (name.includes('first') && name.includes('name')) leadInfo.first_name = value;
-                  else if (name.includes('last') && name.includes('name')) leadInfo.last_name = value;
-                  else if (name === 'full_name' || name === 'name') {
-                    const parts = value.split(' ');
-                    leadInfo.first_name = parts[0];
-                    leadInfo.last_name = parts.slice(1).join(' ');
-                  }
-                }
+                leadInfo = extractLeadInfo(graphData.field_data, leadgenData);
               }
             } catch (fetchError) {
               console.error('⚠️ Failed to fetch from Graph API:', fetchError.message);
             }
           }
+          
+          console.log('👤 Extracted lead info:', JSON.stringify(leadInfo, null, 2));
           
           const lead = Lead.createLead({
             first_name: leadInfo.first_name,
@@ -411,12 +451,15 @@ router.post('/meta', async (req, res) => {
             source_id: leadgenData.leadgen_id,
             campaign_id: leadgenData.form_id,
             custom_fields: {
+              ...leadInfo.custom_fields,
               meta_form_id: leadgenData.form_id,
               meta_page_id: leadgenData.page_id,
               meta_leadgen_id: leadgenData.leadgen_id,
+              meta_ad_id: leadgenData.ad_id,
+              meta_adgroup_id: leadgenData.adgroup_id,
               meta_created_time: leadgenData.created_time
             },
-            notes: leadInfo.email ? 'Lead from Meta Instant Forms' : 'Lead from Meta - add META_PAGE_ACCESS_TOKEN to fetch details'
+            notes: 'Lead from Meta Instant Forms'
           });
           
           leadsCreated.push(lead);
