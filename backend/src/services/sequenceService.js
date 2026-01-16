@@ -662,7 +662,7 @@ async function processMessage(msg) {
 }
 
 /**
- * Substitute variables in content
+ * Substitute variables in content and format for HTML
  */
 function substituteVariables(content, variables) {
   const result = {};
@@ -673,11 +673,44 @@ function substituteVariables(content, variables) {
       for (const [varName, varValue] of Object.entries(variables)) {
         text = text.replace(new RegExp(`{{${varName}}}`, 'gi'), varValue || '');
       }
+      
+      // Convert newlines to <br> for HTML body (but not for subject or whatsapp)
+      if (key === 'body') {
+        text = formatEmailHtml(text);
+      }
+      
       result[key] = text;
     }
   }
   
   return result;
+}
+
+/**
+ * Format email body as clean HTML with proper spacing
+ */
+function formatEmailHtml(body) {
+  // Convert newlines to <br> tags, preserving double newlines as paragraph breaks
+  const paragraphs = body.split(/\n\n+/);
+  
+  const htmlParagraphs = paragraphs.map(p => {
+    // Convert single newlines within paragraphs to <br>
+    const lines = p.trim().split('\n').map(line => line.trim()).join('<br>\n');
+    return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${lines}</p>`;
+  });
+  
+  // Wrap in a clean HTML template
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px;">
+  ${htmlParagraphs.join('\n  ')}
+</body>
+</html>`.trim();
 }
 
 // ==========================================
