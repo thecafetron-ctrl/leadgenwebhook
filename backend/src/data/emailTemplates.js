@@ -268,7 +268,7 @@ STRUCTURE Team`
   },
   {
     id: 'value_9',
-    subject: 'Customs and compliance don't have to slow you down',
+    subject: "Customs and compliance don't have to slow you down",
     body: `Hi {{first_name}},
 
 Customs documentation is one of the most time-consuming parts of international logistics.
@@ -320,7 +320,7 @@ STRUCTURE Team`
   },
   {
     id: 'value_12',
-    subject: 'Automation isn't about perfection — it's about consistency',
+    subject: "Automation isn't about perfection — it's about consistency",
     body: `Hi {{first_name}},
 
 A lot of companies delay automation because they think their processes need to be perfect first.
@@ -550,7 +550,7 @@ STRUCTURE Team`
   },
   {
     id: 'value_25',
-    subject: 'Automation doesn't mean losing control',
+    subject: "Automation doesn't mean losing control",
     body: `Hi {{first_name}},
 
 A common concern with automation is that it takes control away.
@@ -568,7 +568,7 @@ STRUCTURE Team`
   },
   {
     id: 'value_26',
-    subject: 'The cost of "we've always done it this way"',
+    subject: "The cost of 'we've always done it this way'",
     body: `Hi {{first_name}},
 
 Familiarity is comfortable.
@@ -730,7 +730,7 @@ STRUCTURE Team`
   },
   {
     id: 'value_35',
-    subject: 'You don't have to figure this out alone',
+    subject: "You don't have to figure this out alone",
     body: `Hi {{first_name}},
 
 Most logistics businesses don't have automation expertise in-house.
