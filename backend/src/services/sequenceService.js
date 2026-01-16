@@ -822,27 +822,45 @@ function substituteVariables(content, variables) {
  * Format email body as clean HTML with proper spacing
  */
 function formatEmailHtml(body) {
-  // Convert newlines to <br> tags, preserving double newlines as paragraph breaks
+  // Convert newlines to paragraph breaks
   const paragraphs = body.split(/\n\n+/);
   
   const htmlParagraphs = paragraphs.map(p => {
-    // Convert single newlines within paragraphs to <br>
-    const lines = p.trim().split('\n').map(line => line.trim()).join('<br>\n');
-    return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${lines}</p>`;
+    const trimmed = p.trim();
+    
+    // Handle signature block specially (Best regards, etc.)
+    if (trimmed.startsWith('Best regards') || trimmed.startsWith('Best,') || trimmed.startsWith('Regards,')) {
+      const lines = trimmed.split('\n').map(line => line.trim());
+      return `<p style="margin: 24px 0 0 0; line-height: 1.6;">${lines[0]}</p>${lines.length > 1 ? `<p style="margin: 4px 0 0 0; line-height: 1.6; font-weight: 500;">${lines.slice(1).join('<br>')}</p>` : ''}`;
+    }
+    
+    // Handle bullet points
+    if (trimmed.includes('•') || trimmed.includes('- ')) {
+      const lines = trimmed.split('\n').map(line => line.trim());
+      return `<p style="margin: 0 0 16px 0; line-height: 1.8;">${lines.join('<br>')}</p>`;
+    }
+    
+    // Regular paragraph - no <br> within, each line becomes its own paragraph if multi-line
+    const lines = trimmed.split('\n').map(line => line.trim()).filter(l => l);
+    if (lines.length === 1) {
+      return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${lines[0]}</p>`;
+    }
+    
+    // Multi-line within same block - use <br>
+    return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${lines.join('<br>')}</p>`;
   });
   
   // Wrap in a clean HTML template
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px;">
-  ${htmlParagraphs.join('\n  ')}
+${htmlParagraphs.join('\n')}
 </body>
-</html>`.trim();
+</html>`;
 }
 
 // ==========================================

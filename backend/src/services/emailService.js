@@ -38,8 +38,8 @@ export function initEmailService() {
   const email2 = process.env.EMAIL_FROM_2 || process.env.SMTP_USER_2 || 'sales@structurelogistics.com';
 
   emailAccounts = [
-    { from: email1, name: 'STRUCTURE Team' },
-    { from: email2, name: 'STRUCTURE Sales' }
+    { from: email1, name: 'Haarith Imran' },
+    { from: email2, name: 'STRUCTURE AI' }
   ];
 
   console.log('✅ Email service initialized with Resend API');
