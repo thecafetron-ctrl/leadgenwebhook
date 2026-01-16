@@ -14,7 +14,124 @@
 import { query } from '../database/connection.js';
 import { sendEmail } from './emailService.js';
 import { sendWhatsApp } from './whatsappService.js';
-import { VALUE_EMAILS, CALENDAR_LINK } from '../data/emailTemplates.js';
+import { 
+  VALUE_EMAILS, 
+  CLOSING_EMAILS,
+  CALENDAR_LINK, 
+  OPERATIONAL_EMAILS,
+  WHATSAPP_MESSAGES 
+} from '../data/emailTemplates.js';
+
+/**
+ * Get email content for a specific step based on step name and order
+ * Returns { subject, body, whatsapp } or null if no match
+ */
+function getTemplateForStep(stepName, stepOrder, sequenceSlug) {
+  const name = stepName.toLowerCase();
+  
+  // Welcome / Calendar step (step 1)
+  if (name.includes('welcome') || name.includes('calendar')) {
+    return {
+      subject: OPERATIONAL_EMAILS.welcome_calendar.subject,
+      body: OPERATIONAL_EMAILS.welcome_calendar.body,
+      whatsapp: WHATSAPP_MESSAGES.welcome
+    };
+  }
+  
+  // Meeting confirmation
+  if (name.includes('confirmation')) {
+    return {
+      subject: OPERATIONAL_EMAILS.meeting_confirmation.subject,
+      body: OPERATIONAL_EMAILS.meeting_confirmation.body,
+      whatsapp: WHATSAPP_MESSAGES.meeting_confirmation
+    };
+  }
+  
+  // Reminder emails
+  if (name.includes('24hr reminder') || name.includes('24 hour')) {
+    return {
+      subject: 'Reminder: Your automation consultation is tomorrow',
+      body: `Hi {{first_name}},
+
+Just a quick reminder that your 45-minute automation consultation with STRUCTURE is scheduled for tomorrow.
+
+Please make sure you have a quiet space with stable internet. We will be diving into your logistics operations in detail.
+
+If you need to reschedule, please use the link in your calendar invite.
+
+Looking forward to speaking with you.
+
+Best regards,
+STRUCTURE Team`,
+      whatsapp: WHATSAPP_MESSAGES.reminder_24hr
+    };
+  }
+  
+  if (name.includes('6hr reminder') || name.includes('6 hour')) {
+    return {
+      subject: 'Your consultation is in 6 hours',
+      body: `Hi {{first_name}},
+
+Your automation consultation with STRUCTURE is coming up in about 6 hours.
+
+Make sure you have the meeting link ready and a quiet space to talk.
+
+See you soon.
+
+Best regards,
+STRUCTURE Team`,
+      whatsapp: WHATSAPP_MESSAGES.reminder_24hr
+    };
+  }
+  
+  if (name.includes('1hr reminder') || name.includes('1 hour')) {
+    return {
+      subject: 'Starting in 1 hour',
+      body: `Hi {{first_name}},
+
+Your automation consultation with STRUCTURE starts in about an hour.
+
+Make sure you're ready and have your meeting link handy.
+
+See you shortly.
+
+Best regards,
+STRUCTURE Team`,
+      whatsapp: WHATSAPP_MESSAGES.reminder_1hr
+    };
+  }
+  
+  // No-show / Rebooking
+  if (name.includes('no show') || name.includes('no-show') || name.includes('rebook')) {
+    return {
+      subject: OPERATIONAL_EMAILS.no_show_rebook.subject,
+      body: OPERATIONAL_EMAILS.no_show_rebook.body,
+      whatsapp: WHATSAPP_MESSAGES.no_show
+    };
+  }
+  
+  // Schedule Meeting CTA (step 6 of new_lead)
+  if (name.includes('schedule meeting') || name.includes('cta')) {
+    return {
+      subject: 'Have you had a chance to schedule your consultation?',
+      body: `Hi {{first_name}},
+
+Following up on your automation interest.
+
+We haven't seen a consultation scheduled yet. If automation is still something you're actively exploring, the next step is a 45-minute session where we review your workflows and assess fit.
+
+No pressure either way.
+
+If you'd like to move forward, you can book a time <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+Best regards,
+STRUCTURE Team`
+    };
+  }
+  
+  // No match - return null (will fall back to value email)
+  return null;
+}
 
 /**
  * Convert delay to milliseconds
@@ -363,12 +480,21 @@ export async function manualSendStep(leadId, stepId) {
   
   const enrollment = enrollmentResult.rows[0];
   
-  // Check for value email (randomized)
+  // Get template or value email
   let emailSubject = step.email_subject;
   let emailBody = step.email_body;
+  let whatsappMessage = step.whatsapp_message;
   let valueEmailId = null;
   
-  if (step.name.toLowerCase().includes('value') || !emailSubject) {
+  // 1. First check for a specific template based on step name
+  const template = getTemplateForStep(step.name, step.step_order, null);
+  if (template) {
+    emailSubject = template.subject;
+    emailBody = template.body;
+    whatsappMessage = template.whatsapp || whatsappMessage;
+  }
+  // 2. Otherwise, if it's a value email step OR we still don't have content, use value email
+  else if (step.name.toLowerCase().includes('value') || !emailSubject) {
     const valueEmail = await getNextValueEmailForLead(leadId);
     if (valueEmail) {
       emailSubject = valueEmail.subject;
@@ -377,21 +503,18 @@ export async function manualSendStep(leadId, stepId) {
     }
   }
   
-  // Substitute variables
-  const content = {
+  // Substitute variables using the shared function (includes HTML formatting)
+  const content = substituteVariables({
     subject: emailSubject,
-    body: emailBody
-  };
-  
-  for (const [key, val] of Object.entries(content)) {
-    if (val) {
-      content[key] = val
-        .replace(/\{\{first_name\}\}/gi, lead.first_name || 'there')
-        .replace(/\{\{last_name\}\}/gi, lead.last_name || '')
-        .replace(/\{\{email\}\}/gi, lead.email || '')
-        .replace(/\{\{phone\}\}/gi, lead.phone || '');
-    }
-  }
+    body: emailBody,
+    whatsapp: whatsappMessage
+  }, {
+    first_name: lead.first_name || 'there',
+    last_name: lead.last_name || '',
+    email: lead.email || '',
+    phone: lead.phone || '',
+    calendar_link: CALENDAR_LINK
+  });
   
   let result = { success: false };
   
@@ -406,10 +529,8 @@ export async function manualSendStep(leadId, stepId) {
   }
   
   // Send WhatsApp
-  if ((step.channel === 'whatsapp' || step.channel === 'both') && lead.phone && step.whatsapp_message) {
-    const waContent = step.whatsapp_message
-      .replace(/\{\{first_name\}\}/gi, lead.first_name || 'there');
-    await sendWhatsApp({ phone: lead.phone, message: waContent });
+  if ((step.channel === 'whatsapp' || step.channel === 'both') && lead.phone && content.whatsapp) {
+    await sendWhatsApp({ phone: lead.phone, message: content.whatsapp });
   }
   
   // Record sent message
@@ -568,16 +689,27 @@ async function processMessage(msg) {
   // Mark as processing
   await query('UPDATE message_queue SET status = $1 WHERE id = $2', ['processing', msg.id]);
   
-  // Check if this is a value email step (dynamic content)
+  // Get step name for template lookup
+  const stepResult = await query('SELECT name, step_order FROM sequence_steps WHERE id = $1', [msg.sequence_step_id]);
+  const stepName = stepResult.rows[0]?.name || '';
+  const stepOrder = stepResult.rows[0]?.step_order || msg.step_order || 1;
+  
+  // Try to get template content first
   let emailSubject = msg.email_subject;
   let emailBody = msg.email_body;
+  let whatsappMessage = msg.whatsapp_message;
   let valueEmailId = null;
   
-  // If the step name contains "Value Email" or subject is empty, use randomized value email
-  const stepResult = await query('SELECT name FROM sequence_steps WHERE id = $1', [msg.sequence_step_id]);
-  const stepName = stepResult.rows[0]?.name || '';
-  
-  if (stepName.toLowerCase().includes('value') || !emailSubject) {
+  // 1. First check for a specific template based on step name
+  const template = getTemplateForStep(stepName, stepOrder, null);
+  if (template) {
+    emailSubject = template.subject;
+    emailBody = template.body;
+    whatsappMessage = template.whatsapp || whatsappMessage;
+    console.log(`📧 Using template for step "${stepName}"`);
+  }
+  // 2. Otherwise, if it's a value email step OR we still don't have content, use value email
+  else if (stepName.toLowerCase().includes('value') || !emailSubject) {
     const valueEmail = await getNextValueEmailForLead(msg.lead_id);
     if (valueEmail) {
       emailSubject = valueEmail.subject;
@@ -591,7 +723,7 @@ async function processMessage(msg) {
   const content = substituteVariables({
     subject: emailSubject,
     body: emailBody,
-    whatsapp: msg.whatsapp_message
+    whatsapp: whatsappMessage
   }, {
     first_name: msg.first_name || 'there',
     last_name: msg.last_name || '',
