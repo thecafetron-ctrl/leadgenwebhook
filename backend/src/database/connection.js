@@ -19,33 +19,51 @@ export async function initDatabase() {
     return pool;
   }
 
-  const connectionString = process.env.DATABASE_URL;
+  let connectionString = process.env.DATABASE_URL;
   
   if (!connectionString) {
     throw new Error('DATABASE_URL environment variable is required');
   }
+
+  // Remove channel_binding parameter (causes issues with Railway/Neon)
+  connectionString = connectionString.replace(/[&?]channel_binding=[^&]*/g, '');
+  
+  // Clean up any double && or trailing &
+  connectionString = connectionString.replace(/&&/g, '&').replace(/\?&/g, '?').replace(/&$/g, '');
+
+  // Parse host for logging
+  const hostMatch = connectionString.match(/@([^/:]+)/);
+  console.log('🔄 Connecting to:', hostMatch?.[1] || 'database');
 
   pool = new Pool({
     connectionString,
     ssl: {
       rejectUnauthorized: false
     },
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    max: 5, // Reduced for serverless
+    idleTimeoutMillis: 20000,
+    connectionTimeoutMillis: 30000 // Increased timeout
   });
 
-  // Test connection
-  try {
-    const client = await pool.connect();
-    console.log('✅ Connected to Neon PostgreSQL');
-    client.release();
-  } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    throw error;
+  // Test connection with retries
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const client = await pool.connect();
+      console.log('✅ Connected to Neon PostgreSQL');
+      client.release();
+      return pool;
+    } catch (error) {
+      lastError = error;
+      console.error(`❌ Connection attempt ${attempt}/3 failed:`, error.message);
+      if (attempt < 3) {
+        console.log('   Retrying in 3 seconds...');
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    }
   }
 
-  return pool;
+  throw lastError;
 }
 
 /**
