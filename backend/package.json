@@ -12,15 +12,16 @@
     "db:reset-sequences": "node src/database/resetSequences.js"
   },
   "dependencies": {
-    "pg": "^8.11.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
+    "nodemailer": "^6.9.9",
+    "pg": "^8.11.3",
+    "resend": "^6.7.0",
     "uuid": "^9.0.1",
-    "zod": "^3.22.4",
-    "nodemailer": "^6.9.9"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

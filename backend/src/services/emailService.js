@@ -1,109 +1,65 @@
 /**
- * Email Service
+ * Email Service - Using Resend API
  * 
- * Handles sending emails using Nodemailer.
- * ROTATES between two SMTP accounts to avoid spam filters.
+ * Resend is an HTTP-based email API that works on Railway (no SMTP blocking).
+ * ROTATES between two email addresses to avoid spam filters.
  * 
- * Environment Variables (Account 1 - Primary):
- * - SMTP_HOST: SMTP server host
- * - SMTP_PORT: SMTP server port (default: 465)
- * - SMTP_SECURE: Use TLS (true for 465)
- * - SMTP_USER: Primary email (haarith@structurelogistics.com)
- * - SMTP_PASS: Primary password
+ * Environment Variables:
+ * - RESEND_API_KEY: Your Resend API key (get it from resend.com)
+ * - EMAIL_FROM_1: First sender email (haarith@structurelogistics.com)
+ * - EMAIL_FROM_2: Second sender email (sales@structurelogistics.com)
  * 
- * Environment Variables (Account 2 - Secondary):
- * - SMTP_USER_2: Secondary email (sales@structurelogistics.com)
- * - SMTP_PASS_2: Secondary password
+ * OR for backwards compatibility:
+ * - SMTP_USER: Primary email
+ * - SMTP_USER_2: Secondary email
  */
 
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-// Two transporters for rotation
-let transporter1 = null;  // haarith@
-let transporter2 = null;  // sales@
+let resend = null;
 let emailAccounts = [];
 
 /**
- * Initialize email transporters (both accounts)
+ * Initialize email service
  */
 export function initEmailService() {
-  const host = process.env.SMTP_HOST || 'mail.spacemail.com';
-  // Try port 587 (STARTTLS) first, then fall back to 465 (SSL)
-  const port = parseInt(process.env.SMTP_PORT) || 587;
-  // secure should be false for port 587 (STARTTLS), true for port 465
-  const secure = port === 465;
-
-  console.log(`📧 Initializing email with: host=${host}, port=${port}, secure=${secure}`);
-
-  // Account 1: haarith@structurelogistics.com
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    transporter1 = nodemailer.createTransport({
-      host, 
-      port, 
-      secure,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      connectionTimeout: 30000, // 30 seconds
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      tls: {
-        rejectUnauthorized: false // Allow self-signed certs
-      }
-    });
-    emailAccounts.push({
-      transporter: transporter1,
-      from: process.env.SMTP_USER,
-      name: 'STRUCTURE Team'
-    });
-    console.log('✅ Email account 1 initialized:', process.env.SMTP_USER);
-  } else {
-    console.log('⚠️ Email account 1 NOT configured - SMTP_USER:', process.env.SMTP_USER ? 'set' : 'MISSING', 'SMTP_PASS:', process.env.SMTP_PASS ? 'set' : 'MISSING');
-  }
-
-  // Account 2: sales@structurelogistics.com
-  if (process.env.SMTP_USER_2 && process.env.SMTP_PASS_2) {
-    transporter2 = nodemailer.createTransport({
-      host, 
-      port, 
-      secure,
-      auth: { user: process.env.SMTP_USER_2, pass: process.env.SMTP_PASS_2 },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-    emailAccounts.push({
-      transporter: transporter2,
-      from: process.env.SMTP_USER_2,
-      name: 'STRUCTURE Sales'
-    });
-    console.log('✅ Email account 2 initialized:', process.env.SMTP_USER_2);
-  } else {
-    console.log('⚠️ Email account 2 NOT configured - SMTP_USER_2:', process.env.SMTP_USER_2 ? 'set' : 'MISSING');
-  }
-
-  if (emailAccounts.length === 0) {
-    console.log('❌ Email service NOT configured (missing SMTP credentials)');
-    console.log('   Required: SMTP_HOST, SMTP_USER, SMTP_PASS');
+  const apiKey = process.env.RESEND_API_KEY;
+  
+  if (!apiKey) {
+    console.log('⚠️ RESEND_API_KEY not set - email service disabled');
+    console.log('   Get a free API key at https://resend.com');
     return false;
   }
 
-  console.log(`✅ Email service ready with ${emailAccounts.length} account(s) for rotation`);
+  resend = new Resend(apiKey);
+
+  // Get email addresses from env
+  const email1 = process.env.EMAIL_FROM_1 || process.env.SMTP_USER || 'haarith@structurelogistics.com';
+  const email2 = process.env.EMAIL_FROM_2 || process.env.SMTP_USER_2 || 'sales@structurelogistics.com';
+
+  emailAccounts = [
+    { from: email1, name: 'STRUCTURE Team' },
+    { from: email2, name: 'STRUCTURE Sales' }
+  ];
+
+  console.log('✅ Email service initialized with Resend API');
+  console.log(`   Account 1: ${email1}`);
+  console.log(`   Account 2: ${email2}`);
+  
   return true;
 }
 
 /**
  * Get email account for sending (rotates based on step number)
- * Steps 1-12: Account 1 (haarith@)
- * Steps 13-24: Account 2 (sales@)
+ * Steps 1-12: Account 1
+ * Steps 13-24: Account 2
  */
-function getEmailAccount(stepNumber = 1) {
+function getEmailAccount(stepOrder = 1) {
   if (emailAccounts.length === 0) return null;
   if (emailAccounts.length === 1) return emailAccounts[0];
   
   // Rotate at halfway point (step 12)
-  const useSecondAccount = stepNumber > 12;
+  const useSecondAccount = stepOrder > 12;
   return useSecondAccount ? emailAccounts[1] : emailAccounts[0];
 }
 
@@ -111,46 +67,42 @@ function getEmailAccount(stepNumber = 1) {
  * Check if email service is configured
  */
 export function isEmailConfigured() {
-  return emailAccounts.length > 0;
+  return resend !== null;
 }
 
 /**
  * Send a single email
- * @param {Object} options - Email options
- * @param {string} options.to - Recipient email
- * @param {string} options.subject - Email subject
- * @param {string} options.html - HTML body
- * @param {string} options.text - Plain text body (optional)
- * @param {string} options.from - From address (optional, uses rotation)
- * @param {number} options.stepOrder - Sequence step number for rotation (1-24)
  */
 export async function sendEmail({ to, subject, html, text, from, stepOrder = 1 }) {
-  const account = getEmailAccount(stepOrder);
-  
-  if (!account) {
-    throw new Error('Email service not configured. Set SMTP_USER and SMTP_PASS environment variables.');
+  if (!resend) {
+    throw new Error('Email service not configured. Set RESEND_API_KEY environment variable.');
   }
 
-  const mailOptions = {
-    from: from || `"${account.name}" <${account.from}>`,
-    to,
-    subject,
-    html,
-    text: text || html?.replace(/<[^>]*>/g, '') // Strip HTML for text version
-  };
+  const account = getEmailAccount(stepOrder);
+  const fromAddress = from || `${account.name} <${account.from}>`;
 
   try {
-    const info = await account.transporter.sendMail(mailOptions);
-    console.log(`📧 Email sent via ${account.from}:`, info.messageId);
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
+      to: [to],
+      subject,
+      html,
+      text: text || html?.replace(/<[^>]*>/g, '')
+    });
+
+    if (error) {
+      console.error(`Email send error:`, error);
+      throw new Error(error.message);
+    }
+
+    console.log(`📧 Email sent via Resend (${account.from}):`, data.id);
     return {
       success: true,
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
+      messageId: data.id,
       sentFrom: account.from
     };
   } catch (error) {
-    console.error(`Email send error (${account.from}):`, error);
+    console.error(`Email send error:`, error);
     throw error;
   }
 }
@@ -175,10 +127,9 @@ export async function sendTestEmail(to, customContent = null) {
         h1 { color: #f1f5f9; font-size: 24px; margin: 0 0 20px 0; }
         p { color: #94a3b8; line-height: 1.6; margin: 0 0 15px 0; }
         .highlight { color: #0ea5e9; font-weight: 600; }
-        .cta { display: inline-block; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 20px; }
+        .timestamp { background: #1e293b; padding: 10px 15px; border-radius: 8px; font-family: monospace; font-size: 14px; color: #94a3b8; margin-top: 20px; }
         .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #334155; }
         .footer p { font-size: 12px; color: #64748b; }
-        .timestamp { background: #1e293b; padding: 10px 15px; border-radius: 8px; font-family: monospace; font-size: 14px; color: #94a3b8; margin-top: 20px; }
       </style>
     </head>
     <body>
@@ -191,7 +142,7 @@ export async function sendTestEmail(to, customContent = null) {
           
           <h1>Email Test Successful! ✅</h1>
           
-          <p>Great news! Your email configuration is working correctly. This test email was sent from your <span class="highlight">Lead Pipeline</span> platform.</p>
+          <p>Great news! Your email configuration is working correctly. This test email was sent from your <span class="highlight">Lead Pipeline</span> platform using Resend.</p>
           
           <p>You can now:</p>
           <ul style="color: #94a3b8; line-height: 2;">
@@ -207,7 +158,7 @@ export async function sendTestEmail(to, customContent = null) {
           
           <div class="footer">
             <p>This is a test email from Lead Pipeline Platform</p>
-            <p>Webhook Dashboard • Email Automation • Lead Management</p>
+            <p>Powered by Resend</p>
           </div>
         </div>
       </div>
@@ -219,8 +170,7 @@ export async function sendTestEmail(to, customContent = null) {
 }
 
 /**
- * Send email sequence (multiple emails with delays)
- * For testing purposes, sends immediately with sequence info
+ * Send email sequence (for testing)
  */
 export async function sendEmailSequence(to, sequence) {
   const results = [];
@@ -252,9 +202,6 @@ export async function sendEmailSequence(to, sequence) {
             <div class="content">
               <p>${step.content || 'This is a test email from your sequence.'}</p>
             </div>
-            <p style="font-size: 14px; color: #64748b;">
-              ${step.delay ? `⏱️ In production, this would be sent after ${step.delay}` : '📧 Sent immediately for testing'}
-            </p>
             <div class="footer">
               <p>Lead Pipeline • Email Sequence Test</p>
             </div>
@@ -265,7 +212,7 @@ export async function sendEmailSequence(to, sequence) {
     `;
 
     try {
-      const result = await sendEmail({ to, subject, html });
+      const result = await sendEmail({ to, subject, html, stepOrder: i + 1 });
       results.push({ step: i + 1, success: true, ...result });
     } catch (error) {
       results.push({ step: i + 1, success: false, error: error.message });
@@ -276,31 +223,23 @@ export async function sendEmailSequence(to, sequence) {
 }
 
 /**
- * Verify email configuration (non-blocking)
+ * Verify email configuration
  */
 export async function verifyEmailConfig() {
-  if (emailAccounts.length === 0) {
+  if (!resend) {
     return { 
       configured: false, 
-      error: 'Email service not configured - check SMTP_USER and SMTP_PASS env vars',
-      envCheck: {
-        SMTP_HOST: process.env.SMTP_HOST ? 'set' : 'missing',
-        SMTP_USER: process.env.SMTP_USER ? 'set' : 'missing',
-        SMTP_PASS: process.env.SMTP_PASS ? 'set' : 'missing',
-        SMTP_USER_2: process.env.SMTP_USER_2 ? 'set' : 'missing',
-        SMTP_PASS_2: process.env.SMTP_PASS_2 ? 'set' : 'missing'
-      }
+      error: 'RESEND_API_KEY not set',
+      instructions: 'Get a free API key at https://resend.com'
     };
   }
 
-  // Don't actually verify (it can timeout) - just return config status
   return { 
     configured: true, 
+    provider: 'Resend',
     accounts: emailAccounts.length,
     primary: emailAccounts[0]?.from,
-    secondary: emailAccounts[1]?.from || null,
-    host: process.env.SMTP_HOST || 'mail.spacemail.com',
-    port: process.env.SMTP_PORT || '465'
+    secondary: emailAccounts[1]?.from || null
   };
 }
 
