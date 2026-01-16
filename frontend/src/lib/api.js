@@ -269,6 +269,13 @@ export const sequencesApi = {
   },
 
   /**
+   * Get sequence status for a lead
+   */
+  getLeadSequenceStatus: async (leadId) => {
+    return api.get(`/sequences/lead/${leadId}/status`);
+  },
+
+  /**
    * Send newsletter
    */
   sendNewsletter: async (subject, body) => {

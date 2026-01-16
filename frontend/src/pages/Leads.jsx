@@ -27,10 +27,18 @@ import {
   Calendar,
   Tag,
   X,
-  Check
+  Check,
+  Play,
+  Pause,
+  RotateCcw,
+  Zap,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { leadsApi } from '../lib/api';
+import { leadsApi, sequencesApi } from '../lib/api';
 import { useAppStore } from '../lib/store';
 import { 
   cn, 
@@ -127,6 +135,33 @@ function Leads() {
       toast.error(error.message || 'Failed to delete leads');
     }
   });
+
+  // Workflow enrollment mutation
+  const enrollMutation = useMutation({
+    mutationFn: ({ leadId, sequenceSlug }) => sequencesApi.enrollLead(leadId, sequenceSlug),
+    onSuccess: () => {
+      toast.success('Lead enrolled in workflow!');
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to enroll lead');
+    }
+  });
+
+  // Cancel sequence mutation
+  const cancelMutation = useMutation({
+    mutationFn: ({ leadId, sequenceSlug }) => sequencesApi.cancelSequence(leadId, sequenceSlug),
+    onSuccess: () => {
+      toast.success('Workflow cancelled');
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to cancel workflow');
+    }
+  });
+
+  // State for workflow modal
+  const [workflowModal, setWorkflowModal] = useState({ open: false, lead: null, status: null });
 
   // Listen for refresh events
   useEffect(() => {
@@ -446,6 +481,12 @@ function Leads() {
                     {sortBy === 'created_at' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                   </div>
                 </th>
+                <th className="p-4 text-left text-dark-400 text-sm font-medium">
+                  <div className="flex items-center gap-1">
+                    <Zap className="w-4 h-4" />
+                    Workflow
+                  </div>
+                </th>
                 <th className="p-4 text-right text-dark-400 text-sm font-medium">Actions</th>
               </tr>
             </thead>
@@ -460,12 +501,13 @@ function Leads() {
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-24 h-6 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-24 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
                   </tr>
                 ))
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="p-12 text-center text-dark-400">
+                  <td colSpan="8" className="p-12 text-center text-dark-400">
                     <div className="flex flex-col items-center">
                       <Search className="w-12 h-12 mb-4 opacity-50" />
                       <p className="text-lg font-medium">No leads found</p>
@@ -533,6 +575,12 @@ function Leads() {
                         <p className="text-dark-300">{formatDate(lead.created_at)}</p>
                         <p className="text-xs text-dark-500">{formatRelativeTime(lead.created_at)}</p>
                       </div>
+                    </td>
+                    <td className="p-4">
+                      <WorkflowCell 
+                        lead={lead} 
+                        onOpenWorkflow={(lead, status) => setWorkflowModal({ open: true, lead, status })}
+                      />
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-end gap-2">
@@ -666,7 +714,306 @@ function Leads() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Workflow Modal */}
+      <WorkflowModal 
+        isOpen={workflowModal.open}
+        lead={workflowModal.lead}
+        initialStatus={workflowModal.status}
+        onClose={() => setWorkflowModal({ open: false, lead: null, status: null })}
+        onEnroll={(sequenceSlug) => {
+          enrollMutation.mutate({ leadId: workflowModal.lead?.id, sequenceSlug });
+          setWorkflowModal({ open: false, lead: null, status: null });
+        }}
+        onCancel={(sequenceSlug) => {
+          cancelMutation.mutate({ leadId: workflowModal.lead?.id, sequenceSlug });
+          setWorkflowModal({ open: false, lead: null, status: null });
+        }}
+        isLoading={enrollMutation.isLoading || cancelMutation.isLoading}
+      />
     </div>
+  );
+}
+
+/**
+ * WorkflowCell - Shows the lead's workflow status inline
+ */
+function WorkflowCell({ lead, onOpenWorkflow }) {
+  const { data: statusData, isLoading } = useQuery({
+    queryKey: ['leadSequenceStatus', lead.id],
+    queryFn: () => sequencesApi.getLeadSequenceStatus(lead.id),
+    staleTime: 30000, // Cache for 30 seconds
+  });
+
+  if (isLoading) {
+    return <div className="skeleton w-24 h-6 rounded" />;
+  }
+
+  const status = statusData?.data;
+
+  if (!status?.enrolled) {
+    // Not enrolled - show start button
+    return (
+      <button
+        onClick={() => onOpenWorkflow(lead, status)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 transition-colors text-sm"
+      >
+        <Play className="w-3.5 h-3.5" />
+        Start Workflow
+      </button>
+    );
+  }
+
+  const active = status.activeSequence;
+  
+  if (active) {
+    // Active in a sequence - show progress
+    return (
+      <button
+        onClick={() => onOpenWorkflow(lead, status)}
+        className="flex items-center gap-2 text-left"
+      >
+        <div className="flex flex-col">
+          <span className="text-xs text-success-400 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {active.name.replace(' Nurture', '').replace(' Follow-up', '')}
+          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="w-16 h-1.5 bg-dark-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-success-500 rounded-full transition-all"
+                style={{ width: `${active.progress}%` }}
+              />
+            </div>
+            <span className="text-xs text-dark-400">
+              {active.currentStep}/{active.totalSteps}
+            </span>
+          </div>
+        </div>
+      </button>
+    );
+  }
+
+  // Completed or cancelled
+  const lastEnrollment = status.enrollments[0];
+  const statusIcon = lastEnrollment?.status === 'completed' 
+    ? <CheckCircle2 className="w-3.5 h-3.5 text-success-400" />
+    : lastEnrollment?.status === 'cancelled'
+    ? <XCircle className="w-3.5 h-3.5 text-warning-400" />
+    : <AlertCircle className="w-3.5 h-3.5 text-dark-400" />;
+
+  return (
+    <button
+      onClick={() => onOpenWorkflow(lead, status)}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-800/50 text-dark-300 hover:bg-dark-700/50 transition-colors text-sm"
+    >
+      {statusIcon}
+      <span className="capitalize">{lastEnrollment?.status || 'View'}</span>
+      {status.messagesSent > 0 && (
+        <span className="text-xs text-dark-500">({status.messagesSent} sent)</span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * WorkflowModal - Full workflow management for a lead
+ */
+function WorkflowModal({ isOpen, lead, initialStatus, onClose, onEnroll, onCancel, isLoading }) {
+  const queryClient = useQueryClient();
+  
+  // Fetch fresh status when modal opens
+  const { data: statusData, isLoading: statusLoading } = useQuery({
+    queryKey: ['leadSequenceStatus', lead?.id],
+    queryFn: () => sequencesApi.getLeadSequenceStatus(lead.id),
+    enabled: isOpen && !!lead?.id,
+  });
+
+  const status = statusData?.data || initialStatus;
+
+  if (!isOpen) return null;
+
+  const getSequenceInfo = (slug) => {
+    const info = {
+      new_lead: { name: 'New Lead Nurture', description: '18-day email sequence with value content', color: 'primary' },
+      meeting_booked: { name: 'Meeting Booked', description: 'Confirmation + reminders before meeting', color: 'success' },
+      no_show: { name: 'No Show', description: 'Rebooking + nurture sequence', color: 'warning' },
+    };
+    return info[slug] || { name: slug, description: '', color: 'dark' };
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-card p-6 w-full max-w-lg"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-white">Workflow Manager</h3>
+            <p className="text-sm text-dark-400 mt-1">
+              {lead?.first_name} {lead?.last_name} • {lead?.email}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {statusLoading ? (
+          <div className="py-8 text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto" />
+            <p className="text-dark-400 mt-4">Loading workflow status...</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Current Status Summary */}
+            <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700">
+              <h4 className="text-sm font-medium text-dark-300 mb-3">Current Status</h4>
+              
+              {!status?.enrolled ? (
+                <div className="text-center py-4">
+                  <AlertCircle className="w-10 h-10 text-dark-500 mx-auto mb-2" />
+                  <p className="text-dark-300">Not enrolled in any workflow</p>
+                  <p className="text-xs text-dark-500 mt-1">Start a workflow to begin automated follow-ups</p>
+                </div>
+              ) : status.activeSequence ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-success-400 font-medium flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      {status.activeSequence.name}
+                    </span>
+                    <span className="text-sm text-dark-400">
+                      Step {status.activeSequence.currentStep} of {status.activeSequence.totalSteps}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-dark-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-success-500 rounded-full transition-all"
+                      style={{ width: `${status.activeSequence.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-dark-400 mt-2">
+                    {status.messagesSent} messages sent • {status.activeSequence.progress}% complete
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <CheckCircle2 className="w-8 h-8 text-success-400 mx-auto mb-2" />
+                  <p className="text-dark-300">Workflow completed</p>
+                  <p className="text-xs text-dark-500 mt-1">{status.messagesSent} messages sent</p>
+                </div>
+              )}
+            </div>
+
+            {/* Enrollment History */}
+            {status?.enrollments?.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-dark-300 mb-3">History</h4>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {status.enrollments.map((enrollment) => (
+                    <div 
+                      key={enrollment.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-dark-800/30 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        {enrollment.status === 'active' && <Clock className="w-4 h-4 text-success-400" />}
+                        {enrollment.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-success-400" />}
+                        {enrollment.status === 'cancelled' && <XCircle className="w-4 h-4 text-warning-400" />}
+                        <span className="text-dark-300">{enrollment.sequenceName}</span>
+                      </div>
+                      <span className="text-xs text-dark-500">
+                        {enrollment.messagesSent} sent • Step {enrollment.currentStep}/{enrollment.totalSteps}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div>
+              <h4 className="text-sm font-medium text-dark-300 mb-3">Actions</h4>
+              
+              {status?.activeSequence ? (
+                // Active sequence - show cancel option
+                <div className="space-y-2">
+                  <p className="text-xs text-dark-500 mb-2">
+                    The workflow will continue automatically. You can cancel it if needed.
+                  </p>
+                  <button
+                    onClick={() => onCancel(status.activeSequence.slug)}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 rounded-xl bg-warning-500/20 text-warning-400 hover:bg-warning-500/30 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Cancel Current Workflow
+                  </button>
+                </div>
+              ) : (
+                // No active sequence - show enrollment options
+                <div className="space-y-2">
+                  {['new_lead', 'meeting_booked', 'no_show'].map((slug) => {
+                    const info = getSequenceInfo(slug);
+                    const wasInSequence = status?.enrollments?.find(e => e.sequenceSlug === slug);
+                    
+                    return (
+                      <button
+                        key={slug}
+                        onClick={() => onEnroll(slug)}
+                        disabled={isLoading}
+                        className={cn(
+                          "w-full p-3 rounded-xl border transition-all flex items-start gap-3 text-left",
+                          "bg-dark-800/50 border-dark-600 hover:border-primary-500 hover:bg-dark-800"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center mt-0.5",
+                          info.color === 'primary' && "bg-primary-500/20 text-primary-400",
+                          info.color === 'success' && "bg-success-500/20 text-success-400",
+                          info.color === 'warning' && "bg-warning-500/20 text-warning-400",
+                        )}>
+                          {wasInSequence ? <RotateCcw className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-white">{info.name}</span>
+                            {wasInSequence && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-dark-700 text-dark-400">
+                                Re-enroll
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-dark-400 mt-0.5">{info.description}</p>
+                          {wasInSequence && (
+                            <p className="text-xs text-dark-500 mt-1">
+                              Previously: {wasInSequence.messagesSent} messages sent, step {wasInSequence.currentStep}/{wasInSequence.totalSteps}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
 

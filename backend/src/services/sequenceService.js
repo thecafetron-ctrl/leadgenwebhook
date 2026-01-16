@@ -835,6 +835,73 @@ export async function getLeadMessages(leadId) {
   return result.rows;
 }
 
+/**
+ * Get sequence status for a lead
+ * Shows which sequences they're enrolled in, current step, messages sent, etc.
+ */
+export async function getLeadSequenceStatus(leadId) {
+  // Get all sequence enrollments for this lead
+  const enrollments = await query(`
+    SELECT ls.*, 
+           s.name as sequence_name, 
+           s.slug as sequence_slug,
+           (SELECT COUNT(*) FROM sequence_steps ss WHERE ss.sequence_id = s.id) as total_steps,
+           (SELECT COUNT(*) FROM sent_messages sm WHERE sm.lead_id = $1 AND sm.lead_sequence_id = ls.id) as messages_sent,
+           (SELECT COUNT(*) FROM message_queue mq WHERE mq.lead_id = $1 AND mq.lead_sequence_id = ls.id AND mq.status = 'pending') as messages_pending
+    FROM lead_sequences ls
+    JOIN sequences s ON ls.sequence_id = s.id
+    WHERE ls.lead_id = $1
+    ORDER BY ls.enrolled_at DESC
+  `, [leadId]);
+  
+  if (enrollments.rows.length === 0) {
+    return {
+      enrolled: false,
+      enrollments: [],
+      activeSequence: null,
+      messagesSent: 0,
+      currentStep: 0,
+      totalSteps: 0
+    };
+  }
+  
+  // Get the active sequence (if any)
+  const activeEnrollment = enrollments.rows.find(e => e.status === 'active');
+  
+  // Get total messages sent across all sequences
+  const totalSent = await query(`
+    SELECT COUNT(*) FROM sent_messages WHERE lead_id = $1
+  `, [leadId]);
+  
+  return {
+    enrolled: true,
+    enrollments: enrollments.rows.map(e => ({
+      id: e.id,
+      sequenceId: e.sequence_id,
+      sequenceName: e.sequence_name,
+      sequenceSlug: e.sequence_slug,
+      status: e.status,
+      currentStep: e.current_step,
+      totalSteps: parseInt(e.total_steps),
+      messagesSent: parseInt(e.messages_sent),
+      messagesPending: parseInt(e.messages_pending),
+      enrolledAt: e.enrolled_at,
+      completedAt: e.completed_at,
+      cancelledAt: e.cancelled_at,
+      meetingTime: e.meeting_time
+    })),
+    activeSequence: activeEnrollment ? {
+      name: activeEnrollment.sequence_name,
+      slug: activeEnrollment.sequence_slug,
+      currentStep: activeEnrollment.current_step,
+      totalSteps: parseInt(activeEnrollment.total_steps),
+      progress: Math.round((activeEnrollment.current_step / parseInt(activeEnrollment.total_steps)) * 100)
+    } : null,
+    messagesSent: parseInt(totalSent.rows[0].count),
+    canResume: enrollments.rows.some(e => e.status === 'paused' || e.status === 'cancelled')
+  };
+}
+
 export default {
   getSequences,
   getSequenceBySlug,
@@ -852,5 +919,6 @@ export default {
   sendNewsletter,
   getSequenceDashboard,
   getLeadSequenceBoard,
-  getLeadMessages
+  getLeadMessages,
+  getLeadSequenceStatus
 };

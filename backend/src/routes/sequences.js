@@ -271,6 +271,19 @@ router.get('/lead/:leadId/messages', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/sequences/lead/:leadId/status
+ * Get the sequence status for a lead (which sequence they're in, current step, etc.)
+ */
+router.get('/lead/:leadId/status', async (req, res) => {
+  try {
+    const status = await SequenceService.getLeadSequenceStatus(req.params.leadId);
+    res.json({ success: true, data: status });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ==========================================
 // NEWSLETTER
 // ==========================================
