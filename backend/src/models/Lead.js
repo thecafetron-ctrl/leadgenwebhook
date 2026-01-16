@@ -268,32 +268,49 @@ export async function updateLead(id, updates) {
  * Handles cascade delete for foreign key constraints
  */
 export async function deleteLead(id) {
-  // Delete in order to respect foreign key constraints
-  // 1. Delete from message_queue (references lead_sequences)
-  await query(`
-    DELETE FROM message_queue 
-    WHERE lead_id = $1 
-    OR lead_sequence_id IN (SELECT id FROM lead_sequences WHERE lead_id = $1)
-  `, [id]);
-  
-  // 2. Delete from sent_messages
-  await query('DELETE FROM sent_messages WHERE lead_id = $1', [id]);
-  
-  // 3. Delete from lead_sequences
-  await query('DELETE FROM lead_sequences WHERE lead_id = $1', [id]);
-  
-  // 4. Delete from lead_activities
-  await query('DELETE FROM lead_activities WHERE lead_id = $1', [id]);
-  
-  // 5. Delete from webhook_logs
-  await query('DELETE FROM webhook_logs WHERE lead_id = $1', [id]);
-  
-  // 6. Delete from newsletter_subscribers
-  await query('DELETE FROM newsletter_subscribers WHERE lead_id = $1', [id]);
-  
-  // 7. Finally delete the lead
-  const result = await query('DELETE FROM leads WHERE id = $1', [id]);
-  return result.rowCount > 0;
+  try {
+    // Check if lead exists first
+    const existsResult = await query('SELECT id FROM leads WHERE id = $1', [id]);
+    if (existsResult.rows.length === 0) {
+      // Lead doesn't exist - might have been deleted already
+      // Return true to avoid error on frontend (idempotent delete)
+      return true;
+    }
+
+    // Delete in order to respect foreign key constraints
+    // 1. Delete from message_queue (references lead_sequences)
+    await query(`
+      DELETE FROM message_queue 
+      WHERE lead_id = $1 
+      OR lead_sequence_id IN (SELECT id FROM lead_sequences WHERE lead_id = $1)
+    `, [id]);
+    
+    // 2. Delete from sent_messages
+    await query('DELETE FROM sent_messages WHERE lead_id = $1', [id]);
+    
+    // 3. Delete from lead_sequences
+    await query('DELETE FROM lead_sequences WHERE lead_id = $1', [id]);
+    
+    // 4. Delete from lead_activities (if table exists)
+    try {
+      await query('DELETE FROM lead_activities WHERE lead_id = $1', [id]);
+    } catch (e) {
+      // Table might not exist yet, ignore
+    }
+    
+    // 5. Delete from webhook_logs
+    await query('DELETE FROM webhook_logs WHERE lead_id = $1', [id]);
+    
+    // 6. Delete from newsletter_subscribers
+    await query('DELETE FROM newsletter_subscribers WHERE lead_id = $1', [id]);
+    
+    // 7. Finally delete the lead
+    const result = await query('DELETE FROM leads WHERE id = $1', [id]);
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error('Delete lead error:', error);
+    throw error;
+  }
 }
 
 /**
