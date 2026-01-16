@@ -1,10 +1,11 @@
 /**
  * Database Migration for PostgreSQL (Neon)
  * 
- * Creates leads and webhook_logs tables.
+ * Creates all tables including sequence automation.
  */
 
 import { initDatabase, query, closeDatabase } from './connection.js';
+import { SEQUENCE_TABLES, DEFAULT_SEQUENCES, NEW_LEAD_SEQUENCE_STEPS, MEETING_BOOKED_STEPS, NO_SHOW_STEPS } from './schema-sequences.js';
 
 const LEADS_TABLE = `
 CREATE TABLE IF NOT EXISTS leads (
@@ -80,7 +81,7 @@ export async function migrate() {
     
     await initDatabase();
     
-    // Create tables
+    // Create core tables
     await query(LEADS_TABLE);
     console.log('✅ Leads table ready');
     
@@ -89,12 +90,60 @@ export async function migrate() {
     
     // Create indexes
     await query(INDEXES);
-    console.log('✅ Indexes created');
+    console.log('✅ Core indexes created');
+    
+    // Create sequence automation tables
+    await query(SEQUENCE_TABLES);
+    console.log('✅ Sequence tables ready');
+    
+    // Insert default sequences if they don't exist
+    await seedDefaultSequences();
+    console.log('✅ Default sequences ready');
     
     console.log('✅ Database migration complete!');
   } catch (error) {
     console.error('❌ Migration failed:', error);
     throw error;
+  }
+}
+
+/**
+ * Seed default sequences and steps
+ */
+async function seedDefaultSequences() {
+  for (const seq of DEFAULT_SEQUENCES) {
+    // Check if sequence exists
+    const existing = await query('SELECT id FROM sequences WHERE slug = $1', [seq.slug]);
+    
+    if (existing.rows.length === 0) {
+      // Insert sequence
+      const result = await query(
+        `INSERT INTO sequences (name, slug, description, trigger_type) 
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [seq.name, seq.slug, seq.description, seq.trigger_type]
+      );
+      
+      const sequenceId = result.rows[0].id;
+      console.log(`  → Created sequence: ${seq.name}`);
+      
+      // Insert steps based on sequence type
+      let steps = [];
+      if (seq.slug === 'new_lead') steps = NEW_LEAD_SEQUENCE_STEPS;
+      else if (seq.slug === 'meeting_booked') steps = MEETING_BOOKED_STEPS;
+      else if (seq.slug === 'no_show') steps = NO_SHOW_STEPS;
+      
+      for (const step of steps) {
+        await query(
+          `INSERT INTO sequence_steps (sequence_id, step_order, name, delay_value, delay_unit, channel)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [sequenceId, step.step_order, step.name, step.delay_value, step.delay_unit, step.channel]
+        );
+      }
+      
+      if (steps.length > 0) {
+        console.log(`    → Added ${steps.length} steps`);
+      }
+    }
   }
 }
 

@@ -186,6 +186,125 @@ export const healthApi = {
 };
 
 // ==========================================
+// SEQUENCES API
+// ==========================================
+
+export const sequencesApi = {
+  /**
+   * Get sequence dashboard overview
+   */
+  getDashboard: async () => {
+    return api.get('/sequences/dashboard');
+  },
+
+  /**
+   * Get all sequences
+   */
+  getSequences: async () => {
+    return api.get('/sequences');
+  },
+
+  /**
+   * Get sequence details with steps
+   */
+  getSequence: async (slug) => {
+    return api.get(`/sequences/${slug}`);
+  },
+
+  /**
+   * Get leads board for a sequence
+   */
+  getBoard: async (slug, params = {}) => {
+    const queryParams = new URLSearchParams(params);
+    return api.get(`/sequences/${slug}/board?${queryParams.toString()}`);
+  },
+
+  /**
+   * Update a sequence step
+   */
+  updateStep: async (stepId, data) => {
+    return api.put(`/sequences/steps/${stepId}`, data);
+  },
+
+  /**
+   * Manually enroll a lead in a sequence
+   */
+  enrollLead: async (leadId, sequenceSlug, meetingTime = null) => {
+    return api.post('/sequences/enroll', { leadId, sequenceSlug, meetingTime });
+  },
+
+  /**
+   * Cancel a lead's sequence
+   */
+  cancelSequence: async (leadId, sequenceSlug = null, reason = null) => {
+    return api.post('/sequences/cancel', { leadId, sequenceSlug, reason });
+  },
+
+  /**
+   * Mark meeting as booked
+   */
+  meetingBooked: async (leadId, meetingTime) => {
+    return api.post('/sequences/meeting-booked', { leadId, meetingTime });
+  },
+
+  /**
+   * Mark as no-show
+   */
+  noShow: async (leadId) => {
+    return api.post('/sequences/no-show', { leadId });
+  },
+
+  /**
+   * Mark meeting completed
+   */
+  meetingCompleted: async (leadId) => {
+    return api.post('/sequences/meeting-completed', { leadId });
+  },
+
+  /**
+   * Get messages sent to a lead
+   */
+  getLeadMessages: async (leadId) => {
+    return api.get(`/sequences/lead/${leadId}/messages`);
+  },
+
+  /**
+   * Send newsletter
+   */
+  sendNewsletter: async (subject, body) => {
+    return api.post('/sequences/newsletter/send', { subject, body });
+  },
+
+  /**
+   * Get WhatsApp status
+   */
+  getWhatsAppStatus: async () => {
+    return api.get('/sequences/whatsapp/status');
+  },
+
+  /**
+   * Save WhatsApp config
+   */
+  saveWhatsAppConfig: async (config) => {
+    return api.post('/sequences/whatsapp/config', config);
+  },
+
+  /**
+   * Test WhatsApp message
+   */
+  testWhatsApp: async (phone, message) => {
+    return api.post('/sequences/whatsapp/test', { phone, message });
+  },
+
+  /**
+   * Manually process message queue (for testing)
+   */
+  processQueue: async () => {
+    return api.post('/sequences/process-queue');
+  }
+};
+
+// ==========================================
 // EMAIL API
 // ==========================================
 

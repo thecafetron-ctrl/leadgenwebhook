@@ -34,6 +34,12 @@ const mainNavItems = [
     description: 'Manage contacts'
   },
   { 
+    path: '/sequences', 
+    icon: Mail, 
+    label: 'Sequences',
+    description: 'Email & WhatsApp automation'
+  },
+  { 
     path: '/evolution', 
     icon: MessageSquare, 
     label: 'Evolution API',
@@ -55,14 +61,8 @@ const mainNavItems = [
 
 const futureNavItems = [
   { 
-    icon: Mail, 
-    label: 'Email Campaigns',
-    description: 'Coming soon',
-    disabled: true
-  },
-  { 
     icon: Zap, 
-    label: 'Automations',
+    label: 'Advanced Analytics',
     description: 'Coming soon',
     disabled: true
   }

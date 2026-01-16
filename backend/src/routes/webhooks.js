@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import Lead from '../models/Lead.js';
 import WebhookLog from '../models/WebhookLog.js';
 import { webhookLogQuerySchema, validateQuery } from '../middleware/validation.js';
+import { enrollLead, onMeetingBooked } from '../services/sequenceService.js';
 
 const router = Router();
 
@@ -232,6 +233,14 @@ router.post('/meta', async (req, res) => {
           notes: 'Lead from Meta Instant Forms'
         });
         
+        // CRITICAL: Auto-enroll in nurture sequence
+        try {
+          await enrollLead(lead.id, 'new_lead', { enrolledBy: 'webhook' });
+          console.log(`✅ Lead ${lead.id} auto-enrolled in new_lead sequence`);
+        } catch (enrollError) {
+          console.error('Failed to enroll lead in sequence:', enrollError);
+        }
+        
         await WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
         return res.status(200).json({ success: true, data: { leadId: lead.id } });
       }
@@ -281,6 +290,14 @@ router.post('/meta', async (req, res) => {
             },
             notes: 'Lead from Meta Instant Forms'
           });
+          
+          // CRITICAL: Auto-enroll in nurture sequence
+          try {
+            await enrollLead(lead.id, 'new_lead', { enrolledBy: 'webhook' });
+            console.log(`✅ Lead ${lead.id} auto-enrolled in new_lead sequence`);
+          } catch (enrollError) {
+            console.error('Failed to enroll lead in sequence:', enrollError);
+          }
           
           leadsCreated.push(lead);
         }
@@ -351,6 +368,15 @@ router.post('/calcom', async (req, res) => {
             last_booking_time: payload.startTime
           }
         });
+        
+        // Trigger meeting booked sequence
+        try {
+          await onMeetingBooked(existingLead.id, payload.startTime);
+          console.log(`📅 Meeting booked sequence triggered for ${existingLead.id}`);
+        } catch (seqError) {
+          console.error('Failed to trigger meeting sequence:', seqError);
+        }
+        
         leadsCreated.push(existingLead);
       } else {
         const lead = await Lead.createLead({
@@ -369,6 +395,15 @@ router.post('/calcom', async (req, res) => {
           },
           notes: `Booked via Cal.com: ${payload.title}`
         });
+        
+        // New lead from Cal.com = meeting already booked
+        try {
+          await onMeetingBooked(lead.id, payload.startTime);
+          console.log(`📅 Meeting booked sequence triggered for new lead ${lead.id}`);
+        } catch (seqError) {
+          console.error('Failed to trigger meeting sequence:', seqError);
+        }
+        
         leadsCreated.push(lead);
       }
     }

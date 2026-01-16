@@ -44,6 +44,11 @@ import { initEmailService } from './services/emailService.js';
 import leadRoutes from './routes/leads.js';
 import webhookRoutes from './routes/webhooks.js';
 import emailRoutes from './routes/email.js';
+import sequenceRoutes from './routes/sequences.js';
+
+// Import sequence service for scheduler
+import { processMessageQueue } from './services/sequenceService.js';
+import { initWhatsAppService } from './services/whatsappService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,6 +184,7 @@ app.get('/api', (req, res) => {
 app.use('/api/leads', leadRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/sequences', sequenceRoutes);
 
 // ============================================
 // STATIC FILE SERVING (Production)
@@ -233,6 +239,28 @@ app.use((err, req, res, next) => {
 // SERVER INITIALIZATION
 // ============================================
 
+// Message queue scheduler (processes every minute)
+let queueInterval = null;
+
+function startMessageScheduler() {
+  // Process queue every 60 seconds
+  queueInterval = setInterval(async () => {
+    try {
+      const processed = await processMessageQueue();
+      if (processed > 0) {
+        console.log(`📬 Processed ${processed} messages from queue`);
+      }
+    } catch (error) {
+      console.error('Queue processing error:', error);
+    }
+  }, 60000); // Every 60 seconds
+  
+  // Also process immediately on start
+  processMessageQueue().catch(console.error);
+  
+  console.log('✅ Message queue scheduler started');
+}
+
 async function startServer() {
   try {
     // Initialize database and run migrations
@@ -242,8 +270,12 @@ async function startServer() {
     await migrate();
     console.log('✅ Database migrations complete');
 
-    // Initialize email service
+    // Initialize services
     initEmailService();
+    await initWhatsAppService();
+    
+    // Start message queue scheduler
+    startMessageScheduler();
 
     // Start server
     app.listen(PORT, () => {
