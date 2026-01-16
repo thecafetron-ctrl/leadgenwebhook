@@ -224,6 +224,8 @@ router.post('/meta', async (req, res) => {
   // Verify signature if secret is configured
   const signatureValid = verifyMetaSignature(rawBody, signature, appSecret);
   
+  console.log('📥 Meta webhook received:', JSON.stringify(req.body, null, 2));
+  
   // Log the webhook
   const logId = WebhookLog.createWebhookLog({
     source: 'meta_forms',
@@ -249,11 +251,33 @@ router.post('/meta', async (req, res) => {
   try {
     const { object, entry } = req.body;
     
+    // Handle direct field/value format (e.g., leads_retrieval)
+    if (req.body.field && req.body.value) {
+      const { field, value } = req.body;
+      console.log(`📋 Meta ${field} event:`, value);
+      
+      WebhookLog.markWebhookProcessed(
+        logId,
+        null,
+        200,
+        JSON.stringify({ field, event: value.verb || 'received' })
+      );
+      
+      return res.status(200).json({
+        success: true,
+        message: `Received ${field} event`,
+        data: { field, value }
+      });
+    }
+    
+    // Handle standard page webhook format
     if (object !== 'page' || !entry || entry.length === 0) {
-      WebhookLog.markWebhookFailed(logId, 'Invalid payload structure', 400);
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid Meta webhook payload'
+      // Still accept and log unknown formats
+      console.log('⚠️ Unknown Meta payload format, logging anyway');
+      WebhookLog.markWebhookProcessed(logId, null, 200, 'Unknown format - logged');
+      return res.status(200).json({
+        success: true,
+        message: 'Webhook received and logged'
       });
     }
 
@@ -263,8 +287,19 @@ router.post('/meta', async (req, res) => {
       const changes = pageEntry.changes || [];
       
       for (const change of changes) {
+        console.log(`📌 Processing change field: ${change.field}`);
+        
+        // Handle leads_retrieval (permission grants)
+        if (change.field === 'leads_retrieval') {
+          console.log('🔑 Leads retrieval permission event:', change.value);
+          // This is just a permission notification, not an actual lead
+          continue;
+        }
+        
+        // Handle actual lead submissions
         if (change.field === 'leadgen') {
           const leadgenData = change.value;
+          console.log('🎯 New lead received! Leadgen ID:', leadgenData.leadgen_id);
           
           // In production, you would fetch the lead data from Meta Graph API
           // For now, we create a lead with the leadgen_id
@@ -283,7 +318,8 @@ router.post('/meta', async (req, res) => {
               meta_form_id: leadgenData.form_id,
               meta_page_id: leadgenData.page_id,
               meta_leadgen_id: leadgenData.leadgen_id,
-              meta_created_time: leadgenData.created_time
+              meta_created_time: leadgenData.created_time,
+              needs_graph_api_fetch: true
             },
             notes: 'Lead from Meta Instant Forms - fetch details from Graph API'
           });
@@ -306,7 +342,7 @@ router.post('/meta', async (req, res) => {
       message: `Processed ${leadsCreated.length} leads`
     });
   } catch (error) {
-    console.error('Error processing Meta webhook:', error);
+    console.error('❌ Error processing Meta webhook:', error);
     WebhookLog.markWebhookFailed(logId, error.message, 500);
     
     // Still return 200 to Meta to prevent retries
