@@ -34,6 +34,12 @@ const mainNavItems = [
     description: 'Manage contacts'
   },
   { 
+    path: '/evolution', 
+    icon: MessageSquare, 
+    label: 'Evolution API',
+    description: 'WhatsApp messaging'
+  },
+  { 
     path: '/webhooks', 
     icon: Webhook, 
     label: 'Webhook Logs',
@@ -51,12 +57,6 @@ const futureNavItems = [
   { 
     icon: Mail, 
     label: 'Email Campaigns',
-    description: 'Coming soon',
-    disabled: true
-  },
-  { 
-    icon: MessageSquare, 
-    label: 'WhatsApp',
     description: 'Coming soon',
     disabled: true
   },
