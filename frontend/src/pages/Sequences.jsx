@@ -11,6 +11,8 @@ export default function Sequences() {
   const [leads, setLeads] = useState([]);
   const [expandedSteps, setExpandedSteps] = useState({});
   const [selectedLead, setSelectedLead] = useState(null);
+  const [leadStatus, setLeadStatus] = useState(null);
+  const [leadSearch, setLeadSearch] = useState('');
   const [sending, setSending] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,10 +75,42 @@ export default function Sequences() {
       await api.post('/sequences/enroll', { leadId, sequenceSlug });
       alert('✅ Lead enrolled in sequence!');
       loadData();
+      if (selectedLead) loadLeadStatus(selectedLead.id);
     } catch (err) {
       alert('❌ Enrollment failed: ' + (err.response?.data?.error || err.message));
     }
   }
+
+  async function loadLeadStatus(leadId) {
+    try {
+      const res = await api.get(`/sequences/lead/${leadId}/status`);
+      setLeadStatus(res.data.data);
+    } catch (err) {
+      console.error('Failed to load lead status:', err);
+      setLeadStatus(null);
+    }
+  }
+
+  function selectLead(lead) {
+    setSelectedLead(lead);
+    if (lead) {
+      loadLeadStatus(lead.id);
+    } else {
+      setLeadStatus(null);
+    }
+  }
+
+  // Filter leads based on search
+  const filteredLeads = leads.filter(lead => {
+    if (!leadSearch) return true;
+    const search = leadSearch.toLowerCase();
+    return (
+      (lead.first_name || '').toLowerCase().includes(search) ||
+      (lead.last_name || '').toLowerCase().includes(search) ||
+      (lead.email || '').toLowerCase().includes(search) ||
+      (lead.company || '').toLowerCase().includes(search)
+    );
+  });
 
   function formatDelay(value, unit) {
     if (value === 0) return 'Immediately';
@@ -100,23 +134,80 @@ export default function Sequences() {
           <h1 className="text-2xl font-bold text-white">Email Sequences</h1>
           <p className="text-white/50 mt-1">Click any step to see email content. Use manual buttons to test.</p>
         </div>
-        
-        {/* Lead Selector */}
-        <div className="flex items-center gap-4">
-          <span className="text-white/50 text-sm">Test with:</span>
+      </div>
+
+      {/* Lead Selector Card */}
+      <div className="bg-[#12121a] rounded-2xl border border-white/10 p-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <span className="text-white/50 text-sm font-medium">Select Lead:</span>
+          
+          {/* Search Input */}
+          <input
+            type="text"
+            value={leadSearch}
+            onChange={(e) => setLeadSearch(e.target.value)}
+            placeholder="Search by name, email, company..."
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white min-w-[250px] placeholder:text-white/30"
+          />
+          
+          {/* Lead Dropdown */}
           <select
             value={selectedLead?.id || ''}
-            onChange={(e) => setSelectedLead(leads.find(l => l.id === e.target.value))}
-            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white min-w-[200px]"
+            onChange={(e) => selectLead(leads.find(l => l.id === e.target.value))}
+            className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white min-w-[300px]"
           >
             <option value="" className="bg-[#1a1a2e]">Select a lead...</option>
-            {leads.map(lead => (
+            {filteredLeads.slice(0, 50).map(lead => (
               <option key={lead.id} value={lead.id} className="bg-[#1a1a2e]">
-                {lead.first_name || lead.email} {lead.last_name || ''}
+                {lead.first_name || 'Unknown'} {lead.last_name || ''} - {lead.email || 'No email'}
               </option>
             ))}
           </select>
+
+          {filteredLeads.length > 50 && (
+            <span className="text-white/40 text-sm">Showing 50 of {filteredLeads.length} leads</span>
+          )}
         </div>
+
+        {/* Selected Lead Status */}
+        {selectedLead && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="flex items-start gap-6">
+              <div>
+                <h3 className="text-white font-medium">{selectedLead.first_name} {selectedLead.last_name}</h3>
+                <p className="text-white/50 text-sm">{selectedLead.email}</p>
+                {selectedLead.company && <p className="text-white/40 text-sm">{selectedLead.company}</p>}
+              </div>
+              
+              {leadStatus && (
+                <div className="flex-1">
+                  {leadStatus.enrolled ? (
+                    <div className="flex flex-wrap gap-3">
+                      {leadStatus.enrollments.map(enrollment => (
+                        <div key={enrollment.id} className="bg-white/5 rounded-lg px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${
+                              enrollment.status === 'active' ? 'bg-emerald-500' :
+                              enrollment.status === 'completed' ? 'bg-blue-500' :
+                              'bg-amber-500'
+                            }`}></span>
+                            <span className="text-white text-sm font-medium">{enrollment.sequenceName}</span>
+                          </div>
+                          <p className="text-white/50 text-xs mt-1">
+                            Step {enrollment.currentStep}/{enrollment.totalSteps} • 
+                            {enrollment.messagesSent} sent, {enrollment.messagesPending} pending
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-white/40 text-sm">Not enrolled in any sequence</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sequences */}
