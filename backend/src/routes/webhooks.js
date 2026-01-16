@@ -217,6 +217,9 @@ router.post('/meta', async (req, res) => {
   const signature = req.headers['x-hub-signature-256'];
   const appSecret = process.env.META_APP_SECRET;
   
+  // Verify signature if secret is configured
+  const signatureValid = verifyMetaSignature(rawBody, signature, appSecret);
+  
   // Log the webhook
   const logId = WebhookLog.createWebhookLog({
     source: 'meta_forms',
@@ -227,8 +230,17 @@ router.post('/meta', async (req, res) => {
     query_params: req.query,
     ip_address: getClientIP(req),
     user_agent: req.headers['user-agent'],
-    signature_valid: verifyMetaSignature(rawBody, signature, appSecret)
+    signature_valid: signatureValid
   });
+
+  // Reject if signature validation fails (when secret is configured)
+  if (appSecret && signatureValid === false) {
+    WebhookLog.markWebhookFailed(logId, 'Invalid signature', 401);
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid webhook signature'
+    });
+  }
 
   try {
     const { object, entry } = req.body;
@@ -332,6 +344,9 @@ router.post('/calcom', async (req, res) => {
   const signature = req.headers['x-cal-signature-256'];
   const secret = process.env.CALCOM_WEBHOOK_SECRET;
   
+  // Verify signature if secret is configured
+  const signatureValid = verifyCalcomSignature(rawBody, signature, secret);
+  
   // Log the webhook
   const logId = WebhookLog.createWebhookLog({
     source: 'calcom',
@@ -342,8 +357,17 @@ router.post('/calcom', async (req, res) => {
     query_params: req.query,
     ip_address: getClientIP(req),
     user_agent: req.headers['user-agent'],
-    signature_valid: verifyCalcomSignature(rawBody, signature, secret)
+    signature_valid: signatureValid
   });
+
+  // Reject if signature validation fails (when secret is configured)
+  if (secret && signatureValid === false) {
+    WebhookLog.markWebhookFailed(logId, 'Invalid signature', 401);
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid webhook signature'
+    });
+  }
 
   try {
     const { triggerEvent, payload } = req.body;
