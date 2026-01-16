@@ -251,11 +251,74 @@ router.post('/meta', async (req, res) => {
   try {
     const { object, entry } = req.body;
     
-    // Handle direct field/value format (e.g., leads_retrieval)
+    // Handle direct field/value format (Meta's test webhook format)
     if (req.body.field && req.body.value) {
       const { field, value } = req.body;
-      console.log(`📋 Meta ${field} event:`, value);
+      console.log(`📋 Meta ${field} event:`, JSON.stringify(value, null, 2));
       
+      // Handle leadgen in flat format
+      if (field === 'leadgen' && value.leadgen_id) {
+        console.log('🎯 Processing leadgen from flat format');
+        
+        let leadInfo = { first_name: null, last_name: null, email: null, phone: null };
+        
+        // Try to fetch from Graph API
+        const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
+        if (pageAccessToken) {
+          try {
+            const graphUrl = `https://graph.facebook.com/v18.0/${value.leadgen_id}?access_token=${pageAccessToken}&fields=created_time,id,ad_id,form_id,field_data`;
+            const response = await fetch(graphUrl);
+            const graphData = await response.json();
+            
+            if (graphData.field_data) {
+              for (const f of graphData.field_data) {
+                const name = f.name.toLowerCase();
+                const val = f.values?.[0] || '';
+                if (name.includes('email')) leadInfo.email = val;
+                else if (name.includes('phone')) leadInfo.phone = val;
+                else if (name.includes('first')) leadInfo.first_name = val;
+                else if (name.includes('last')) leadInfo.last_name = val;
+                else if (name === 'full_name' || name === 'name') {
+                  const parts = val.split(' ');
+                  leadInfo.first_name = parts[0];
+                  leadInfo.last_name = parts.slice(1).join(' ');
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Graph API fetch error:', err.message);
+          }
+        }
+        
+        const lead = Lead.createLead({
+          first_name: leadInfo.first_name,
+          last_name: leadInfo.last_name,
+          email: leadInfo.email,
+          phone: leadInfo.phone,
+          source: 'meta_forms',
+          source_id: value.leadgen_id,
+          campaign_id: value.form_id,
+          custom_fields: {
+            meta_form_id: value.form_id,
+            meta_page_id: value.page_id,
+            meta_leadgen_id: value.leadgen_id,
+            meta_ad_id: value.ad_id,
+            meta_adgroup_id: value.adgroup_id,
+            meta_created_time: value.created_time
+          },
+          notes: 'Lead from Meta Instant Forms'
+        });
+        
+        WebhookLog.markWebhookProcessed(logId, lead.id, 200, JSON.stringify({ leadId: lead.id }));
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Lead created from Meta webhook',
+          data: { leadId: lead.id }
+        });
+      }
+      
+      // Handle other field types (leads_retrieval, etc)
       WebhookLog.markWebhookProcessed(
         logId,
         null,
