@@ -13,7 +13,6 @@ import Evolution from './pages/Evolution';
 import WebhookLogs from './pages/WebhookLogs';
 import Playground from './pages/Playground';
 import Sequences from './pages/Sequences';
-import PipelineMap from './pages/PipelineMap';
 
 function App() {
   return (
@@ -22,7 +21,6 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="leads" element={<Leads />} />
-          <Route path="pipeline" element={<PipelineMap />} />
           <Route path="sequences" element={<Sequences />} />
           <Route path="evolution" element={<Evolution />} />
           <Route path="webhooks" element={<WebhookLogs />} />
