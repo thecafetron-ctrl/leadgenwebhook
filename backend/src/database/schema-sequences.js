@@ -93,6 +93,9 @@ CREATE TABLE IF NOT EXISTS sent_messages (
   subject VARCHAR(255),
   body TEXT,
   
+  -- Metadata (for tracking which value email was sent, etc.)
+  metadata JSONB DEFAULT '{}',
+  
   -- Delivery status
   status VARCHAR(30) DEFAULT 'pending', -- 'pending', 'sent', 'delivered', 'opened', 'clicked', 'failed', 'bounced'
   

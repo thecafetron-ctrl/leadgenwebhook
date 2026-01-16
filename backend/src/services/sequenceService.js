@@ -14,6 +14,7 @@
 import { query } from '../database/connection.js';
 import { sendEmail } from './emailService.js';
 import { sendWhatsApp } from './whatsappService.js';
+import { VALUE_EMAILS, CALENDAR_LINK } from '../data/emailTemplates.js';
 
 /**
  * Convert delay to milliseconds
@@ -25,6 +26,35 @@ function delayToMs(value, unit) {
     days: 24 * 60 * 60 * 1000
   };
   return value * (multipliers[unit] || multipliers.minutes);
+}
+
+/**
+ * Get next unsent value email for a lead
+ * This ensures we never send the same value email twice to the same lead
+ */
+async function getNextValueEmailForLead(leadId) {
+  // Get all value email IDs that have been sent to this lead
+  const sentResult = await query(`
+    SELECT DISTINCT metadata->>'value_email_id' as email_id
+    FROM sent_messages
+    WHERE lead_id = $1 
+    AND metadata->>'value_email_id' IS NOT NULL
+  `, [leadId]);
+  
+  const sentEmailIds = new Set(sentResult.rows.map(r => r.email_id));
+  
+  // Find value emails not yet sent
+  const availableEmails = VALUE_EMAILS.filter(e => !sentEmailIds.has(e.id));
+  
+  if (availableEmails.length === 0) {
+    // All emails sent - pick random from full list (cycle)
+    const randomIndex = Math.floor(Math.random() * VALUE_EMAILS.length);
+    return VALUE_EMAILS[randomIndex];
+  }
+  
+  // Randomize from available emails
+  const randomIndex = Math.floor(Math.random() * availableEmails.length);
+  return availableEmails[randomIndex];
 }
 
 /**
@@ -394,17 +424,36 @@ async function processMessage(msg) {
   // Mark as processing
   await query('UPDATE message_queue SET status = $1 WHERE id = $2', ['processing', msg.id]);
   
+  // Check if this is a value email step (dynamic content)
+  let emailSubject = msg.email_subject;
+  let emailBody = msg.email_body;
+  let valueEmailId = null;
+  
+  // If the step name contains "Value Email" or subject is empty, use randomized value email
+  const stepResult = await query('SELECT name FROM sequence_steps WHERE id = $1', [msg.sequence_step_id]);
+  const stepName = stepResult.rows[0]?.name || '';
+  
+  if (stepName.toLowerCase().includes('value') || !emailSubject) {
+    const valueEmail = await getNextValueEmailForLead(msg.lead_id);
+    if (valueEmail) {
+      emailSubject = valueEmail.subject;
+      emailBody = valueEmail.body;
+      valueEmailId = valueEmail.id;
+      console.log(`📧 Using value email "${valueEmail.id}" for lead ${msg.lead_id}`);
+    }
+  }
+  
   // Prepare content with variable substitution
   const content = substituteVariables({
-    subject: msg.email_subject,
-    body: msg.email_body,
+    subject: emailSubject,
+    body: emailBody,
     whatsapp: msg.whatsapp_message
   }, {
     first_name: msg.first_name || 'there',
     last_name: msg.last_name || '',
     email: msg.email,
     phone: msg.phone,
-    calendar_link: process.env.CALENDAR_LINK || 'https://cal.com/yourlink'
+    calendar_link: CALENDAR_LINK
   });
   
   let externalId = null;
@@ -433,16 +482,19 @@ async function processMessage(msg) {
     }
   }
   
+  // Build metadata object
+  const metadata = valueEmailId ? JSON.stringify({ value_email_id: valueEmailId }) : null;
+  
   // Record in sent_messages (CRITICAL)
   await query(`
     INSERT INTO sent_messages (
       lead_id, lead_sequence_id, sequence_step_id, channel, message_type,
-      subject, body, status, external_message_id, sent_at
-    ) VALUES ($1, $2, $3, $4, 'sequence', $5, $6, $7, $8, NOW())
+      subject, body, status, external_message_id, metadata, sent_at
+    ) VALUES ($1, $2, $3, $4, 'sequence', $5, $6, $7, $8, $9, NOW())
   `, [
     msg.lead_id, msg.lead_sequence_id, msg.sequence_step_id, msg.channel,
     content.subject, msg.channel === 'email' ? content.body : content.whatsapp,
-    status, externalId
+    status, externalId, metadata
   ]);
   
   // Update queue status
