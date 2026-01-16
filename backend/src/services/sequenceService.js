@@ -178,7 +178,25 @@ async function getNextValueEmailForLead(leadId) {
  * Calculate scheduled time for a step
  */
 function calculateScheduledTime(enrolledAt, delayValue, delayUnit, meetingTime = null) {
-  const baseTime = meetingTime ? new Date(meetingTime) : new Date(enrolledAt);
+  // For meeting sequences:
+  // - delay = 0: send immediately (use enrolledAt)
+  // - delay < 0: relative to meeting time (reminders)
+  // - delay > 0: relative to enrolledAt
+  
+  if (delayValue === 0) {
+    // Immediate - always use enrollment time
+    return new Date(enrolledAt);
+  }
+  
+  if (delayValue < 0 && meetingTime) {
+    // Negative delay = before meeting time (for reminders)
+    const baseTime = new Date(meetingTime);
+    const delayMs = delayToMs(Math.abs(delayValue), delayUnit);
+    return new Date(baseTime.getTime() - delayMs);
+  }
+  
+  // Positive delay = after enrollment
+  const baseTime = new Date(enrolledAt);
   const delayMs = delayToMs(delayValue, delayUnit);
   return new Date(baseTime.getTime() + delayMs);
 }
