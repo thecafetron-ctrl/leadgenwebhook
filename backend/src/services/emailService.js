@@ -2,64 +2,112 @@
  * Email Service
  * 
  * Handles sending emails using Nodemailer.
- * Supports multiple SMTP providers (Gmail, SendGrid, Mailgun, custom SMTP)
+ * ROTATES between two SMTP accounts to avoid spam filters.
  * 
- * Environment Variables:
+ * Environment Variables (Account 1 - Primary):
  * - SMTP_HOST: SMTP server host
- * - SMTP_PORT: SMTP server port (default: 587)
- * - SMTP_SECURE: Use TLS (true for 465, false for other ports)
- * - SMTP_USER: SMTP username/email
- * - SMTP_PASS: SMTP password/app password
- * - EMAIL_FROM: Default from address
+ * - SMTP_PORT: SMTP server port (default: 465)
+ * - SMTP_SECURE: Use TLS (true for 465)
+ * - SMTP_USER: Primary email (haarith@structurelogistics.com)
+ * - SMTP_PASS: Primary password
+ * 
+ * Environment Variables (Account 2 - Secondary):
+ * - SMTP_USER_2: Secondary email (sales@structurelogistics.com)
+ * - SMTP_PASS_2: Secondary password
  */
 
 import nodemailer from 'nodemailer';
 
-// Create reusable transporter
-let transporter = null;
+// Two transporters for rotation
+let transporter1 = null;  // haarith@
+let transporter2 = null;  // sales@
+let emailAccounts = [];
 
 /**
- * Initialize email transporter
+ * Initialize email transporters (both accounts)
  */
 export function initEmailService() {
-  const config = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  };
+  const host = process.env.SMTP_HOST || 'mail.spacemail.com';
+  const port = parseInt(process.env.SMTP_PORT) || 465;
+  const secure = process.env.SMTP_SECURE === 'true';
 
-  // Only create transporter if credentials are provided
-  if (config.auth.user && config.auth.pass) {
-    transporter = nodemailer.createTransport(config);
-    console.log('✅ Email service initialized');
-    return true;
-  } else {
+  // Account 1: haarith@structurelogistics.com
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    transporter1 = nodemailer.createTransport({
+      host, port, secure,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    emailAccounts.push({
+      transporter: transporter1,
+      from: process.env.SMTP_USER,
+      name: 'STRUCTURE Team'
+    });
+    console.log('✅ Email account 1 initialized:', process.env.SMTP_USER);
+  }
+
+  // Account 2: sales@structurelogistics.com
+  if (process.env.SMTP_USER_2 && process.env.SMTP_PASS_2) {
+    transporter2 = nodemailer.createTransport({
+      host, port, secure,
+      auth: { user: process.env.SMTP_USER_2, pass: process.env.SMTP_PASS_2 }
+    });
+    emailAccounts.push({
+      transporter: transporter2,
+      from: process.env.SMTP_USER_2,
+      name: 'STRUCTURE Sales'
+    });
+    console.log('✅ Email account 2 initialized:', process.env.SMTP_USER_2);
+  }
+
+  if (emailAccounts.length === 0) {
     console.log('⚠️ Email service not configured (missing SMTP credentials)');
     return false;
   }
+
+  console.log(`✅ Email service ready with ${emailAccounts.length} account(s) for rotation`);
+  return true;
+}
+
+/**
+ * Get email account for sending (rotates based on step number)
+ * Steps 1-12: Account 1 (haarith@)
+ * Steps 13-24: Account 2 (sales@)
+ */
+function getEmailAccount(stepNumber = 1) {
+  if (emailAccounts.length === 0) return null;
+  if (emailAccounts.length === 1) return emailAccounts[0];
+  
+  // Rotate at halfway point (step 12)
+  const useSecondAccount = stepNumber > 12;
+  return useSecondAccount ? emailAccounts[1] : emailAccounts[0];
 }
 
 /**
  * Check if email service is configured
  */
 export function isEmailConfigured() {
-  return transporter !== null;
+  return emailAccounts.length > 0;
 }
 
 /**
  * Send a single email
+ * @param {Object} options - Email options
+ * @param {string} options.to - Recipient email
+ * @param {string} options.subject - Email subject
+ * @param {string} options.html - HTML body
+ * @param {string} options.text - Plain text body (optional)
+ * @param {string} options.from - From address (optional, uses rotation)
+ * @param {number} options.stepNumber - Sequence step number for rotation (1-24)
  */
-export async function sendEmail({ to, subject, html, text, from }) {
-  if (!transporter) {
+export async function sendEmail({ to, subject, html, text, from, stepNumber = 1 }) {
+  const account = getEmailAccount(stepNumber);
+  
+  if (!account) {
     throw new Error('Email service not configured. Set SMTP_USER and SMTP_PASS environment variables.');
   }
 
   const mailOptions = {
-    from: from || process.env.EMAIL_FROM || process.env.SMTP_USER,
+    from: from || `"${account.name}" <${account.from}>`,
     to,
     subject,
     html,
@@ -67,16 +115,17 @@ export async function sendEmail({ to, subject, html, text, from }) {
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent:', info.messageId);
+    const info = await account.transporter.sendMail(mailOptions);
+    console.log(`📧 Email sent via ${account.from}:`, info.messageId);
     return {
       success: true,
       messageId: info.messageId,
       accepted: info.accepted,
-      rejected: info.rejected
+      rejected: info.rejected,
+      sentFrom: account.from
     };
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error(`Email send error (${account.from}):`, error);
     throw error;
   }
 }

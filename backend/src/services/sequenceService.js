@@ -512,7 +512,7 @@ export async function processMessageQueue() {
   const result = await query(`
     SELECT mq.*, 
            ls.lead_id, ls.status as sequence_status,
-           ss.email_subject, ss.email_body, ss.whatsapp_message,
+           ss.step_order, ss.email_subject, ss.email_body, ss.whatsapp_message,
            l.first_name, l.last_name, l.email, l.phone
     FROM message_queue mq
     JOIN lead_sequences ls ON mq.lead_sequence_id = ls.id
@@ -604,12 +604,14 @@ async function processMessage(msg) {
   let status = 'sent';
   
   // Send based on channel
+  // Email rotation: steps 1-12 use account 1, steps 13-24 use account 2
   if (msg.channel === 'email' && msg.email) {
     const result = await sendEmail({
       to: msg.email,
       subject: content.subject,
       html: content.body,
-      text: content.body.replace(/<[^>]*>/g, '')
+      text: content.body.replace(/<[^>]*>/g, ''),
+      stepNumber: msg.step_order || 1  // For rotation between accounts
     });
     externalId = result.messageId;
     if (!result.success) {
