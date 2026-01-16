@@ -25,10 +25,16 @@ export async function initDatabase() {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  // Remove channel_binding parameter (causes issues with Railway/Neon)
+  // Fix common mistakes in DATABASE_URL
+  // 1. Remove "DATABASE_URL=" if someone included it in the value
+  if (connectionString.startsWith('DATABASE_URL=')) {
+    connectionString = connectionString.replace('DATABASE_URL=', '');
+  }
+  
+  // 2. Remove channel_binding parameter (causes issues with Railway/Neon)
   connectionString = connectionString.replace(/[&?]channel_binding=[^&]*/g, '');
   
-  // Clean up any double && or trailing &
+  // 3. Clean up any double && or trailing &
   connectionString = connectionString.replace(/&&/g, '&').replace(/\?&/g, '?').replace(/&$/g, '');
 
   console.log('🔄 Connecting to database...');
