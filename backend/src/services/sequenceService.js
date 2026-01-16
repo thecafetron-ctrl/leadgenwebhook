@@ -183,6 +183,16 @@ export async function enrollLead(leadId, sequenceSlug, options = {}) {
   await scheduleSequenceMessages(enrollment.id, sequence.id, enrollment.enrolled_at, meetingTime);
   
   console.log(`✅ Lead ${leadId} enrolled in sequence ${sequenceSlug}`);
+  
+  // CRITICAL: Immediately process any messages due now (delay=0)
+  // Don't wait for scheduler - send welcome message RIGHT NOW
+  try {
+    const processed = await processMessageQueue();
+    console.log(`⚡ Immediately processed ${processed} messages after enrollment`);
+  } catch (processError) {
+    console.error('Failed to process immediate messages:', processError);
+  }
+  
   return enrollment;
 }
 
