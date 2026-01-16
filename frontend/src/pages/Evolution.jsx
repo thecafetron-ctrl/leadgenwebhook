@@ -36,8 +36,24 @@ const item = {
   show: { opacity: 1, y: 0 }
 };
 
-// Get Evolution API URL from environment or use default
-const EVOLUTION_API_URL = import.meta.env.VITE_EVOLUTION_API_URL || 'http://localhost:8080';
+// Get Evolution API URL from environment or auto-detect based on hostname
+const getEvolutionApiUrl = () => {
+  // If explicitly set via environment variable, use that
+  if (import.meta.env.VITE_EVOLUTION_API_URL) {
+    return import.meta.env.VITE_EVOLUTION_API_URL;
+  }
+  
+  // In production (Railway), use the evolution API subdomain
+  if (window.location.hostname.includes('railway.app')) {
+    // Evolution API service URL - update this after deploying
+    return 'https://evolution-api-production.up.railway.app';
+  }
+  
+  // Local development
+  return 'http://localhost:8080';
+};
+
+const EVOLUTION_API_URL = getEvolutionApiUrl();
 
 function Evolution() {
   const [apiStatus, setApiStatus] = useState('checking');
