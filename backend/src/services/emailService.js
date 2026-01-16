@@ -97,10 +97,10 @@ export function isEmailConfigured() {
  * @param {string} options.html - HTML body
  * @param {string} options.text - Plain text body (optional)
  * @param {string} options.from - From address (optional, uses rotation)
- * @param {number} options.stepNumber - Sequence step number for rotation (1-24)
+ * @param {number} options.stepOrder - Sequence step number for rotation (1-24)
  */
-export async function sendEmail({ to, subject, html, text, from, stepNumber = 1 }) {
-  const account = getEmailAccount(stepNumber);
+export async function sendEmail({ to, subject, html, text, from, stepOrder = 1 }) {
+  const account = getEmailAccount(stepOrder);
   
   if (!account) {
     throw new Error('Email service not configured. Set SMTP_USER and SMTP_PASS environment variables.');
@@ -254,13 +254,19 @@ export async function sendEmailSequence(to, sequence) {
  * Verify email configuration
  */
 export async function verifyEmailConfig() {
-  if (!transporter) {
+  if (emailAccounts.length === 0) {
     return { configured: false, error: 'Email service not configured' };
   }
 
   try {
-    await transporter.verify();
-    return { configured: true, verified: true };
+    // Verify first account
+    await emailAccounts[0].transporter.verify();
+    return { 
+      configured: true, 
+      verified: true,
+      accounts: emailAccounts.length,
+      primary: emailAccounts[0]?.from
+    };
   } catch (error) {
     return { configured: true, verified: false, error: error.message };
   }
