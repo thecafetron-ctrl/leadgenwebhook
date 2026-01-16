@@ -31,19 +31,27 @@ export async function initDatabase() {
   // Clean up any double && or trailing &
   connectionString = connectionString.replace(/&&/g, '&').replace(/\?&/g, '?').replace(/&$/g, '');
 
-  // Parse host for logging
-  const hostMatch = connectionString.match(/@([^/:]+)/);
-  console.log('🔄 Connecting to:', hostMatch?.[1] || 'database');
+  console.log('🔄 Connecting to database...');
 
+  // Parse the connection string manually to avoid pg picking up other env vars
+  const url = new URL(connectionString);
+  
   pool = new Pool({
-    connectionString,
+    host: url.hostname,
+    port: parseInt(url.port) || 5432,
+    database: url.pathname.slice(1), // Remove leading /
+    user: url.username,
+    password: url.password,
     ssl: {
       rejectUnauthorized: false
     },
-    max: 5, // Reduced for serverless
+    max: 5,
     idleTimeoutMillis: 20000,
-    connectionTimeoutMillis: 30000 // Increased timeout
+    connectionTimeoutMillis: 30000
   });
+  
+  console.log('   Host:', url.hostname);
+  console.log('   Database:', url.pathname.slice(1));
 
   // Test connection with retries
   let lastError;
