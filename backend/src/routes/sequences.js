@@ -388,7 +388,7 @@ router.post('/process-queue', async (req, res) => {
 
 /**
  * POST /api/sequences/admin/seed-ebook
- * Admin endpoint to seed the ebook_nurture sequence
+ * Admin endpoint to seed or update the ebook_nurture sequence
  */
 router.post('/admin/seed-ebook', async (req, res) => {
   try {
@@ -397,17 +397,28 @@ router.post('/admin/seed-ebook', async (req, res) => {
     
     // Check if sequence already exists
     const existing = await query("SELECT id FROM sequences WHERE slug = 'ebook_nurture'");
-    if (existing.rows.length > 0) {
-      return res.json({ success: true, message: 'Ebook sequence already exists', sequenceId: existing.rows[0].id });
-    }
+    let sequenceId;
     
-    // Create the sequence
-    const result = await query(
-      `INSERT INTO sequences (name, slug, description, trigger_type)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      ['Ebook Nurture', 'ebook_nurture', 'Ebook delivery + 24 nurture emails over 100 days', 'ebook_signup']
-    );
-    const sequenceId = result.rows[0].id;
+    if (existing.rows.length > 0) {
+      sequenceId = existing.rows[0].id;
+      
+      // Delete old steps and add new ones
+      await query('DELETE FROM sequence_steps WHERE sequence_id = $1', [sequenceId]);
+      
+      // Update description
+      await query(
+        `UPDATE sequences SET description = $1, updated_at = NOW() WHERE id = $2`,
+        ['Ebook delivery → 6hr follow-up → 35 days of value emails', sequenceId]
+      );
+    } else {
+      // Create the sequence
+      const result = await query(
+        `INSERT INTO sequences (name, slug, description, trigger_type)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        ['Ebook Nurture', 'ebook_nurture', 'Ebook delivery → 6hr follow-up → 35 days of value emails', 'ebook_signup']
+      );
+      sequenceId = result.rows[0].id;
+    }
     
     // Add steps
     for (const step of EBOOK_NURTURE_STEPS) {
@@ -418,7 +429,12 @@ router.post('/admin/seed-ebook', async (req, res) => {
       );
     }
     
-    res.json({ success: true, message: 'Ebook sequence created', sequenceId, stepsCreated: EBOOK_NURTURE_STEPS.length });
+    res.json({ 
+      success: true, 
+      message: existing.rows.length > 0 ? 'Ebook sequence updated' : 'Ebook sequence created', 
+      sequenceId, 
+      stepsCreated: EBOOK_NURTURE_STEPS.length 
+    });
   } catch (error) {
     console.error('Seed ebook sequence error:', error);
     res.status(500).json({ success: false, error: error.message });
