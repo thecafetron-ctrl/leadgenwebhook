@@ -1020,515 +1020,85 @@ We look forward to seeing you on the call.`
 };
 
 // ============================================
-// EBOOK NURTURE SEQUENCE (24 emails)
+// EBOOK NURTURE SEQUENCE
+// Ebook delivery → 6hr follow-up → 35 days of value emails
 // ============================================
 
-export const EBOOK_LINK = 'https://structurelogistics.com/ebook/logistics-automation-guide.pdf';
+export const EBOOK_LINK = 'https://structurelogistics.com/ebook/90-day-logistics-scaling-playbook.pdf';
 
 export const EBOOK_EMAILS = {
   // Email 1: Immediate - Ebook Delivery
   ebook_delivery: {
-    subject: 'Your free guide: The Logistics Automation Playbook',
+    subject: 'Your 90-Day Logistics Scaling Playbook',
     body: `Hi {{first_name}},
 
-Thanks for downloading The Logistics Automation Playbook.
+Thanks for requesting the <b>90-Day Logistics Scaling Playbook</b>.
 
-Here is your copy: <b><a href="${EBOOK_LINK}">Download the PDF</a></b>
+You can download your copy using the link below:
 
-This guide covers:
+<b><a href="${EBOOK_LINK}">Download the playbook</a></b>
 
-• The 5 manual processes costing logistics companies the most time and money
-• How AI-powered automation reduces errors by up to 80%
-• Real case studies from freight forwarders and 3PLs
-• A framework for calculating your automation ROI
+This playbook was created for operations leaders running freight businesses who are already handling meaningful volume and are feeling the pressure of manual workflows.
 
-Take 15 minutes to read through it. If you have questions or want to discuss how this applies to your operation, reply to this email.
+Inside, you will find:
+
+• A 90-day framework for scaling shipment volume without adding headcount
+• Practical checklists used by fast-growing freight operators
+• Workflow diagrams that show where automation creates the most leverage
+• Clear explanations designed for ops teams, not engineers
+
+This is not a high-level overview or AI theory.
+It is meant to be used alongside real operations.
+
+If you read through it, you will likely recognize parts of your current workflow in the examples. That is intentional.
+
+I will follow up shortly with some context on how companies typically apply this playbook in practice.
 
 Best regards,
-STRUCTURE Team`
+Haarith Imran`
   },
 
-  // Email 2: Day 2 - Did you get it?
-  nurture_01: {
-    subject: 'Did you get the guide?',
+  // Email 2: 6 hours later - Follow-up with CTA
+  ebook_followup: {
+    subject: 'How companies use the playbook',
     body: `Hi {{first_name}},
 
-Just checking in - did you get a chance to download The Logistics Automation Playbook?
+By now, you may have had a chance to skim through the 90-Day Logistics Scaling Playbook.
 
-If you missed it, here is the link again: <b><a href="${EBOOK_LINK}">Download here</a></b>
+One thing worth clarifying is that the playbook is not meant to be theoretical.
 
-Let me know if you have any questions after reading it.
+It reflects how real logistics teams approach automation when the goal is to handle more shipments with the same team, not to overhaul everything at once.
+
+STRUCTURE exists to help teams implement exactly what the playbook outlines.
+
+We work with freight forwarders, brokers, and 3PLs to:
+
+• Automate quoting, documents, invoicing, finance, and customs
+• Remove repetitive manual work from daily operations
+• Design workflows that scale without adding complexity
+
+The first step is always a <b>45-minute automation consultation</b>.
+
+During this session, we:
+
+• Review your current workflows end to end
+• Identify which parts of the playbook apply to your operation
+• Assess whether automation would realistically create impact at your current scale
+
+If there is a fit, we outline next steps.
+If not, the process ends there.
+
+If you would like to have that conversation, you can schedule the consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
-STRUCTURE Team`
+Haarith Imran`
   },
 
-  // Email 3: Day 4 - Key insight from guide
-  nurture_02: {
-    subject: 'The #1 thing slowing down logistics operations',
-    body: `Hi {{first_name}},
-
-One of the key insights from The Logistics Automation Playbook:
-
-Most logistics companies lose 15-20 hours per week on manual data entry alone.
-
-That is rate confirmations, BOLs, invoice processing, tracking updates - all tasks that can be automated with near-perfect accuracy.
-
-The companies seeing the biggest gains are not replacing their teams. They are freeing them up to focus on customer relationships and growth instead of repetitive admin work.
-
-If you want to see what this looks like for your specific operation, <b><a href="${CALENDAR_LINK}">book a consultation here</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 4: Day 7 - Case study
-  nurture_03: {
-    subject: 'How a 3PL cut processing time by 70%',
-    body: `Hi {{first_name}},
-
-Quick case study for you:
-
-A mid-sized 3PL was spending 4+ hours daily on rate confirmations and invoice matching.
-
-After implementing automation:
-• Processing time dropped from 4 hours to under 1 hour
-• Error rate went from 8% to less than 1%
-• Team could handle 40% more shipments without hiring
-
-The key was not trying to automate everything at once. They started with their highest-volume, most repetitive task and expanded from there.
-
-Want to identify where to start in your operation? <b><a href="${CALENDAR_LINK}">Schedule a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 5: Day 10 - Common mistake
-  nurture_04: {
-    subject: 'The automation mistake that wastes money',
-    body: `Hi {{first_name}},
-
-The biggest mistake companies make with automation:
-
-Trying to automate broken processes.
-
-If your current workflow has unnecessary steps, bottlenecks, or workarounds, automating it just makes a bad process faster.
-
-The right approach:
-1. Map your current process
-2. Identify what can be eliminated or simplified
-3. Then automate what remains
-
-This is exactly what we cover in our consultations - not just what to automate, but what to fix first.
-
-<b><a href="${CALENDAR_LINK}">Book your session here</a></b> if you want a fresh perspective on your workflows.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 6: Day 14 - ROI framework
-  nurture_05: {
-    subject: 'How to calculate your automation ROI',
-    body: `Hi {{first_name}},
-
-Here is a simple framework for calculating automation ROI:
-
-1. Hours spent on task per week × hourly cost = weekly cost
-2. Multiply by 52 for annual cost
-3. Compare against automation investment + maintenance
-
-Example:
-• 20 hours/week on data entry at $25/hour = $500/week
-• Annual cost = $26,000
-• If automation costs $15,000 first year, ROI = 73%
-
-Most logistics automations pay for themselves within 6-12 months.
-
-Want help running these numbers for your operation? <b><a href="${CALENDAR_LINK}">Let us do it in a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 7: Day 18 - Objection handling
-  nurture_06: {
-    subject: 'Is your operation too small for automation?',
-    body: `Hi {{first_name}},
-
-Common question: "We only handle X shipments per month - is automation worth it?"
-
-The answer depends on:
-• How much time you spend on repetitive tasks
-• Your error rate and the cost of mistakes
-• Whether manual work is limiting your growth
-
-We have seen companies with 200 shipments/month benefit significantly, while some with 2,000+ were not ready because their processes were not standardized.
-
-Volume is not the only factor. Process maturity matters more.
-
-Curious where you stand? <b><a href="${CALENDAR_LINK}">Book a quick assessment</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 8: Day 22 - Technology stack
-  nurture_07: {
-    subject: 'What tech do you actually need?',
-    body: `Hi {{first_name}},
-
-One of the most common questions: "What software do we need for automation?"
-
-The truth: You probably already have most of what you need.
-
-Modern automation tools integrate with:
-• Your existing TMS
-• Email and communication platforms
-• Accounting software
-• Customer portals
-
-The key is connecting what you have, not replacing everything.
-
-Want to see how your current tech stack can be leveraged? <b><a href="${CALENDAR_LINK}">Schedule a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 9: Day 26 - Team concerns
-  nurture_08: {
-    subject: 'Will automation replace your team?',
-    body: `Hi {{first_name}},
-
-This is the elephant in the room with automation: "Will it replace my team?"
-
-In our experience: No. It transforms what they do.
-
-Here is what actually happens:
-• Admin staff become exception handlers and customer relationship managers
-• Operations teams focus on optimization instead of data entry
-• Everyone spends time on work that actually requires human judgment
-
-The companies that get this right see higher employee satisfaction because their people do more meaningful work.
-
-Want to discuss how to position automation with your team? <b><a href="${CALENDAR_LINK}">Book a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 10: Day 30 - Implementation timeline
-  nurture_09: {
-    subject: 'How long does automation actually take?',
-    body: `Hi {{first_name}},
-
-Realistic automation timelines:
-
-• Simple task automation (data entry, emails): 2-4 weeks
-• Process automation (rate confirmations, invoicing): 4-8 weeks
-• Full workflow automation: 8-12 weeks
-
-These are not huge IT projects that take years. Modern automation can be implemented incrementally.
-
-Most companies start seeing ROI within the first month of going live.
-
-Ready to build your implementation roadmap? <b><a href="${CALENDAR_LINK}">Schedule a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 11: Day 35 - Industry trends
-  nurture_10: {
-    subject: 'Why 2026 is the year for logistics automation',
-    body: `Hi {{first_name}},
-
-Three trends making this the best time to automate:
-
-1. AI costs have dropped 90% in the last 2 years
-2. Integration tools are more accessible than ever
-3. Your competitors are already doing it
-
-The gap between automated and manual operations is widening. Companies that wait are falling behind on cost efficiency and customer experience.
-
-Where do you want to be in 12 months? <b><a href="${CALENDAR_LINK}">Let us help you get there</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 12: Day 40 - Specific use case
-  nurture_11: {
-    subject: 'Automating rate confirmations (step by step)',
-    body: `Hi {{first_name}},
-
-Here is how rate confirmation automation works:
-
-1. Email comes in with rate confirmation
-2. AI extracts: carrier, rate, pickup/delivery, reference numbers
-3. Data is validated against your TMS
-4. Confirmation is auto-generated and sent
-5. Exceptions are flagged for human review
-
-Result: 95% of confirmations handled without human touch.
-
-The same approach works for BOLs, PODs, and invoices.
-
-Want to see this in action for your specific documents? <b><a href="${CALENDAR_LINK}">Book a demo consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 13: Day 45 - Customer experience
-  nurture_12: {
-    subject: 'How automation improves customer experience',
-    body: `Hi {{first_name}},
-
-Automation is not just about internal efficiency. It transforms customer experience:
-
-• Instant tracking updates instead of "let me check and get back to you"
-• Faster quote turnaround
-• Proactive exception notifications
-• Error-free documentation
-
-Your customers notice when things run smoothly. They also notice when they do not.
-
-Want to discuss customer-facing automation opportunities? <b><a href="${CALENDAR_LINK}">Schedule a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 14: Day 50 - Scaling
-  nurture_13: {
-    subject: 'Can you grow without hiring?',
-    body: `Hi {{first_name}},
-
-The traditional logistics growth model: More shipments = more staff.
-
-The automated model: More shipments = same staff handling more volume.
-
-We have worked with companies that doubled their shipment count without adding headcount. Not because they fired people, but because automation handled the increased load.
-
-That is the difference between linear and scalable growth.
-
-Ready to build a scalable operation? <b><a href="${CALENDAR_LINK}">Let us show you how</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 15: Day 55 - Risk reduction
-  nurture_14: {
-    subject: 'The hidden cost of manual errors',
-    body: `Hi {{first_name}},
-
-Manual data entry errors seem small until you add them up:
-
-• Wrong rates = lost margin
-• Incorrect addresses = delivery failures
-• Missing documentation = customs delays
-• Billing errors = payment delays and disputes
-
-A 2% error rate on 1,000 monthly shipments = 20 problems to fix. Every month.
-
-Automation does not just save time. It eliminates entire categories of problems.
-
-Want to calculate what errors are costing you? <b><a href="${CALENDAR_LINK}">Book an assessment</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 16: Day 60 - Getting started
-  nurture_15: {
-    subject: 'Where to start with automation',
-    body: `Hi {{first_name}},
-
-If you are thinking about automation but not sure where to start:
-
-1. List your 5 most time-consuming repetitive tasks
-2. Rank them by volume and error impact
-3. Start with the highest-impact, most standardized process
-
-Do not try to boil the ocean. One well-automated process teaches you more than planning a dozen.
-
-Want help prioritizing? That is exactly what our consultation covers. <b><a href="${CALENDAR_LINK}">Book your session</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 17: Day 65 - Competitor insight
-  nurture_16: {
-    subject: 'What your competitors are automating',
-    body: `Hi {{first_name}},
-
-Based on our work with logistics companies, here is what gets automated first:
-
-1. Document processing (rate cons, BOLs, invoices)
-2. Tracking updates and customer notifications
-3. Quote generation and rate management
-4. Carrier communication and scheduling
-5. Financial reconciliation
-
-If your competitors are ahead on any of these, they are operating at lower cost and faster speed.
-
-Want to benchmark your operation? <b><a href="${CALENDAR_LINK}">Schedule a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 18: Day 70 - Success factors
-  nurture_17: {
-    subject: 'Why some automation projects fail',
-    body: `Hi {{first_name}},
-
-Automation projects fail when:
-
-• Scope is too broad
-• Processes are not documented
-• Change management is ignored
-• Success metrics are not defined upfront
-
-They succeed when:
-
-• You start small and expand
-• Your team is involved from day one
-• You measure before and after
-• You have clear ownership
-
-We have seen both sides. That is why our approach focuses on quick wins first.
-
-Ready to do it right? <b><a href="${CALENDAR_LINK}">Book a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 19: Day 75 - Investment perspective
-  nurture_18: {
-    subject: 'Automation as investment, not cost',
-    body: `Hi {{first_name}},
-
-Mindset shift: Automation is not an expense. It is an investment with measurable returns.
-
-When you invest $20,000 and save $40,000/year in labor and errors, that is not a cost - it is a 100% annual return.
-
-Compare that to:
-• Hiring another person ($50,000+/year, ongoing)
-• Accepting inefficiency (lost opportunity, hidden costs)
-• Waiting (competitors pull ahead)
-
-The question is not "can we afford automation?" It is "can we afford not to?"
-
-Let us run the numbers for your operation. <b><a href="${CALENDAR_LINK}">Book a consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 20: Day 80 - Urgency
-  nurture_19: {
-    subject: 'The cost of waiting',
-    body: `Hi {{first_name}},
-
-Every month you wait on automation:
-
-• You pay for inefficiency
-• Your team does work that could be automated
-• Competitors gain ground
-• Growth requires proportional headcount
-
-The best time to automate was last year. The second best time is now.
-
-Most of our clients say their only regret is not starting sooner.
-
-<b><a href="${CALENDAR_LINK}">Schedule your consultation today</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 21: Day 85 - Final value
-  nurture_20: {
-    subject: 'One call could change your operation',
-    body: `Hi {{first_name}},
-
-Here is what you get from a 45-minute consultation:
-
-• Analysis of your current workflows
-• Identification of automation opportunities
-• ROI estimates for top priorities
-• Implementation roadmap
-
-No commitment. Just clarity on whether automation makes sense for you.
-
-If it does not make sense, we will tell you. We do not waste time on bad fits.
-
-<b><a href="${CALENDAR_LINK}">Book your consultation</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 22: Day 90 - Direct ask
-  nurture_21: {
-    subject: 'Ready to talk?',
-    body: `Hi {{first_name}},
-
-We have been sharing insights on logistics automation for a few weeks now.
-
-If any of it resonated, the next step is a conversation.
-
-45 minutes. No pitch. Just an honest assessment of your operation and whether automation would help.
-
-<b><a href="${CALENDAR_LINK}">Book here when you are ready</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 23: Day 95 - Last chance
-  nurture_22: {
-    subject: 'Still thinking about automation?',
-    body: `Hi {{first_name}},
-
-If you have been on the fence about automation, here is a thought:
-
-You do not need to have everything figured out to start a conversation.
-
-The consultation is designed for people who are curious but not sure where to begin.
-
-We will help you figure out if it makes sense, and if so, what the path looks like.
-
-<b><a href="${CALENDAR_LINK}">Schedule your session</a></b>.
-
-Best regards,
-STRUCTURE Team`
-  },
-
-  // Email 24: Day 100 - Final email
-  nurture_23: {
-    subject: 'Last email (for now)',
-    body: `Hi {{first_name}},
-
-This is the last email in our automation series.
-
-If timing is not right, no problem. Keep the ebook for reference.
-
-When you are ready to explore automation, we will be here: <b><a href="${CALENDAR_LINK}">Book a consultation</a></b>
-
-Thanks for reading.
-
-Best regards,
-STRUCTURE Team`
-  }
+  // After these 2 emails, the sequence uses VALUE_EMAILS dynamically for 35 days
+  // The sequenceService will pull from VALUE_EMAILS for steps 3+
 };
+
+// Note: Ebook sequence steps 3-37 will use VALUE_EMAILS (same as new_lead sequence)
 
 export default {
   CALENDAR_LINK,
