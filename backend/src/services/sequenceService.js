@@ -461,6 +461,166 @@ export async function onMeetingCompleted(leadId) {
 }
 
 /**
+ * When a meeting is CANCELLED
+ * - Send cancellation email
+ * - Cancel meeting_booked sequence
+ * - Re-enroll in new_lead sequence (keep sending value emails until they rebook)
+ */
+export async function onMeetingCancelled(leadId) {
+  // Get lead details
+  const leadResult = await query('SELECT * FROM leads WHERE id = $1', [leadId]);
+  const lead = leadResult.rows[0];
+  if (!lead) return;
+  
+  // Send cancellation email
+  const { OPERATIONAL_EMAILS, CALENDAR_LINK } = await import('../data/emailTemplates.js');
+  const template = OPERATIONAL_EMAILS.booking_cancelled;
+  
+  if (template && lead.email) {
+    const content = substituteVariables({
+      subject: template.subject,
+      body: template.body
+    }, {
+      first_name: lead.first_name || 'there',
+      calendar_link: CALENDAR_LINK
+    });
+    
+    await sendEmail({
+      to: lead.email,
+      subject: content.subject,
+      html: content.body,
+      text: content.body.replace(/<[^>]*>/g, '')
+    });
+    
+    // Record the sent message
+    await query(`
+      INSERT INTO sent_messages (lead_id, channel, message_type, subject, body, status, sent_at)
+      VALUES ($1, 'email', 'operational', $2, $3, 'sent', NOW())
+    `, [leadId, content.subject, content.body]);
+    
+    console.log(`📧 Sent cancellation email to ${lead.email}`);
+  }
+  
+  // Cancel meeting_booked sequence
+  await cancelLeadSequence(leadId, 'meeting_booked', 'Meeting cancelled');
+  
+  // Re-enroll in new_lead sequence (they should keep getting value emails until they rebook)
+  await enrollLead(leadId, 'new_lead', { enrolledBy: 'cancellation' });
+  
+  // Update lead status back to contacted
+  await query(
+    'UPDATE leads SET status = $1, updated_at = NOW() WHERE id = $2',
+    ['contacted', leadId]
+  );
+  
+  console.log(`❌ Lead ${leadId} cancelled meeting - re-enrolled in new_lead sequence`);
+}
+
+/**
+ * When a meeting is RESCHEDULED
+ * - Send reschedule confirmation email
+ * - Update meeting time in meeting_booked sequence
+ */
+export async function onMeetingRescheduled(leadId, newMeetingTime) {
+  // Get lead details
+  const leadResult = await query('SELECT * FROM leads WHERE id = $1', [leadId]);
+  const lead = leadResult.rows[0];
+  if (!lead) return;
+  
+  // Send reschedule confirmation email
+  const { OPERATIONAL_EMAILS, CALENDAR_LINK } = await import('../data/emailTemplates.js');
+  const template = OPERATIONAL_EMAILS.booking_rescheduled;
+  
+  if (template && lead.email) {
+    const content = substituteVariables({
+      subject: template.subject,
+      body: template.body
+    }, {
+      first_name: lead.first_name || 'there',
+      calendar_link: CALENDAR_LINK
+    });
+    
+    await sendEmail({
+      to: lead.email,
+      subject: content.subject,
+      html: content.body,
+      text: content.body.replace(/<[^>]*>/g, '')
+    });
+    
+    // Record the sent message
+    await query(`
+      INSERT INTO sent_messages (lead_id, channel, message_type, subject, body, status, sent_at)
+      VALUES ($1, 'email', 'operational', $2, $3, 'sent', NOW())
+    `, [leadId, content.subject, content.body]);
+    
+    console.log(`📧 Sent reschedule confirmation to ${lead.email}`);
+  }
+  
+  // Update meeting time in existing enrollment
+  await query(`
+    UPDATE lead_sequences 
+    SET meeting_time = $1, updated_at = NOW()
+    WHERE lead_id = $2 AND sequence_id = (SELECT id FROM sequences WHERE slug = 'meeting_booked')
+  `, [newMeetingTime, leadId]);
+  
+  // Cancel old scheduled reminders and reschedule with new time
+  const enrollmentResult = await query(`
+    SELECT ls.id, s.id as sequence_id
+    FROM lead_sequences ls
+    JOIN sequences s ON ls.sequence_id = s.id
+    WHERE ls.lead_id = $1 AND s.slug = 'meeting_booked' AND ls.status = 'active'
+  `, [leadId]);
+  
+  if (enrollmentResult.rows[0]) {
+    const enrollment = enrollmentResult.rows[0];
+    
+    // Delete pending reminders (not step 1 confirmation)
+    await query(`
+      DELETE FROM message_queue 
+      WHERE lead_sequence_id = $1 AND status = 'pending'
+      AND sequence_step_id IN (
+        SELECT id FROM sequence_steps WHERE sequence_id = $2 AND step_order > 1
+      )
+    `, [enrollment.id, enrollment.sequence_id]);
+    
+    // Reschedule reminders with new meeting time
+    const stepsResult = await query(`
+      SELECT * FROM sequence_steps 
+      WHERE sequence_id = $1 AND step_order > 1 AND is_active = true
+    `, [enrollment.sequence_id]);
+    
+    for (const step of stepsResult.rows) {
+      const scheduledFor = calculateScheduledTime(
+        new Date().toISOString(),
+        step.delay_value,
+        step.delay_unit,
+        newMeetingTime
+      );
+      
+      // Only schedule if in the future
+      if (new Date(scheduledFor) > new Date()) {
+        if (step.channel === 'email' || step.channel === 'both') {
+          await query(`
+            INSERT INTO message_queue (lead_id, lead_sequence_id, sequence_step_id, channel, scheduled_for)
+            VALUES ($1, $2, $3, 'email', $4)
+            ON CONFLICT DO NOTHING
+          `, [leadId, enrollment.id, step.id, scheduledFor]);
+        }
+        if (step.channel === 'whatsapp' || step.channel === 'both') {
+          await query(`
+            INSERT INTO message_queue (lead_id, lead_sequence_id, sequence_step_id, channel, scheduled_for)
+            VALUES ($1, $2, $3, 'whatsapp', $4)
+            ON CONFLICT DO NOTHING
+          `, [leadId, enrollment.id, step.id, scheduledFor]);
+        }
+      }
+    }
+  }
+  
+  console.log(`📅 Lead ${leadId} rescheduled meeting to ${newMeetingTime}`);
+}
+
+/**
  * Manually send a specific step to a lead
  * TAMPERPROOF: Won't duplicate - if already sent, skips. Auto will move to next.
  */

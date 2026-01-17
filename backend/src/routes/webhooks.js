@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import Lead from '../models/Lead.js';
 import WebhookLog from '../models/WebhookLog.js';
 import { webhookLogQuerySchema, validateQuery } from '../middleware/validation.js';
-import { enrollLead, onMeetingBooked } from '../services/sequenceService.js';
+import { enrollLead, onMeetingBooked, onMeetingCancelled, onMeetingRescheduled } from '../services/sequenceService.js';
 
 const router = Router();
 
@@ -340,7 +340,7 @@ router.post('/calcom', async (req, res) => {
 
   try {
     const { triggerEvent, payload } = req.body;
-    const validEvents = ['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CONFIRMED'];
+    const validEvents = ['BOOKING_CREATED', 'BOOKING_RESCHEDULED', 'BOOKING_CONFIRMED', 'BOOKING_CANCELLED'];
     
     if (!validEvents.includes(triggerEvent)) {
       await WebhookLog.markWebhookProcessed(logId, null, 200, 'Event ignored');
@@ -350,6 +350,32 @@ router.post('/calcom', async (req, res) => {
     if (!payload?.attendees?.length) {
       await WebhookLog.markWebhookFailed(logId, 'No attendees', 400);
       return res.status(400).json({ success: false, error: 'Invalid payload' });
+    }
+
+    // Handle CANCELLATION separately
+    if (triggerEvent === 'BOOKING_CANCELLED') {
+      for (const attendee of payload.attendees) {
+        const existingLead = await Lead.getLeadByEmail(attendee.email);
+        if (existingLead) {
+          console.log(`❌ Booking cancelled for lead: ${existingLead.id}`);
+          await onMeetingCancelled(existingLead.id);
+        }
+      }
+      await WebhookLog.markWebhookProcessed(logId, null, 200, 'Cancellation processed');
+      return res.status(200).json({ success: true, message: 'Cancellation processed' });
+    }
+
+    // Handle RESCHEDULE separately
+    if (triggerEvent === 'BOOKING_RESCHEDULED') {
+      for (const attendee of payload.attendees) {
+        const existingLead = await Lead.getLeadByEmail(attendee.email);
+        if (existingLead) {
+          console.log(`📅 Booking rescheduled for lead: ${existingLead.id} to ${payload.startTime}`);
+          await onMeetingRescheduled(existingLead.id, payload.startTime);
+        }
+      }
+      await WebhookLog.markWebhookProcessed(logId, null, 200, 'Reschedule processed');
+      return res.status(200).json({ success: true, message: 'Reschedule processed' });
     }
 
     const leadsCreated = [];

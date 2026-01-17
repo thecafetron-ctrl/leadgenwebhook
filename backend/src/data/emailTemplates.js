@@ -102,6 +102,54 @@ If you would like clarity before making any decisions, you can schedule the cons
 
 Best regards,
 STRUCTURE Team`
+  },
+
+  // Cancellation confirmation
+  booking_cancelled: {
+    subject: 'Your consultation has been cancelled',
+    body: `Hi {{first_name}},
+
+Thank you for letting us know in advance about the cancellation.
+
+We appreciate you taking the time to update us. These sessions require preparation from our team, so advance notice makes a real difference.
+
+If automation is still something you would like to explore, you are welcome to reschedule the consultation at a time that works better for you.
+
+The session remains a 45-minute working consultation where we review your workflows, identify where manual processes are creating friction, and assess whether automation makes sense for your operation.
+
+If and when you are ready, you can reschedule <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+If now is not the right time, no action is needed. You can revisit this whenever it becomes a priority.
+
+Best regards,
+STRUCTURE Team`
+  },
+
+  // Reschedule confirmation
+  booking_rescheduled: {
+    subject: 'Your consultation has been rescheduled',
+    body: `Hi {{first_name}},
+
+Your automation consultation with STRUCTURE has been successfully rescheduled.
+
+Thank you for updating the timing rather than missing the session. We appreciate that level of professionalism.
+
+As a reminder, this is a 45-minute consultation focused on:
+
+• Understanding how your logistics operation currently runs
+• Identifying where manual work is limiting speed, accuracy, or scale
+• Assessing whether AI-driven automation would realistically create impact
+
+This is not a demo or a sales call.
+
+It is a working session to determine fit and next steps, if any.
+
+You will receive a calendar confirmation from our scheduling system with the updated details.
+
+We look forward to the conversation.
+
+Best regards,
+STRUCTURE Team`
   }
 };
 
