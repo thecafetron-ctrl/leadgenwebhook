@@ -35,21 +35,22 @@ export async function initWhatsAppService() {
   }
   
   // Fall back to environment variables
-  if (process.env.EVOLUTION_API_URL) {
-    config = {
-      api_url: process.env.EVOLUTION_API_URL,
-      // Initial messages (Haarith)
-      instance_initial: process.env.EVOLUTION_INSTANCE_INITIAL || 'lead',
-      api_key_initial: process.env.EVOLUTION_API_KEY_INITIAL || process.env.EVOLUTION_API_KEY,
-      // Follow-up messages (Meta +44)
-      instance_followup: process.env.EVOLUTION_INSTANCE_FOLLOWUP || 'meta',
-      api_key_followup: process.env.EVOLUTION_API_KEY_FOLLOWUP || process.env.EVOLUTION_API_KEY
-    };
-    console.log('✅ WhatsApp service initialized with dual instances:');
-    console.log(`   Initial (Haarith): ${config.instance_initial}`);
-    console.log(`   Follow-up (Meta): ${config.instance_followup}`);
-    return true;
-  }
+  // HARDCODED: Both instances with their respective API keys
+  const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution-production-3990.up.railway.app';
+  
+  config = {
+    api_url: EVOLUTION_URL,
+    // Initial messages (Haarith +971) - ONLY for new_lead step 1
+    instance_initial: 'lead',
+    api_key_initial: '47AB4E03B894-421B-8F28-91D255097A26',
+    // ALL other messages (Meta +44) - confirmations, reminders, value emails
+    instance_followup: 'meta',
+    api_key_followup: 'A394DBD5EE55-48A8-A771-CE7539ECBE01'
+  };
+  console.log('✅ WhatsApp service initialized with dual instances:');
+  console.log(`   Initial (Haarith +971): ${config.instance_initial}`);
+  console.log(`   Follow-up (Meta +44): ${config.instance_followup}`);
+  return true;
   
   console.log('⚠️ WhatsApp service not configured - messages will be logged only');
   return false;
