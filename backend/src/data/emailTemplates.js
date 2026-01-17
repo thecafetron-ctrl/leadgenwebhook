@@ -1094,11 +1094,19 @@ Best regards,
 Haarith Imran`
   },
 
-  // After these 2 emails, the sequence uses VALUE_EMAILS dynamically for 35 days
-  // The sequenceService will pull from VALUE_EMAILS for steps 3+
+  // WhatsApp message for ebook delivery (sent with email)
+  ebook_whatsapp: `Hi {{first_name}},
+
+Thank you for requesting the 90-Day Logistics Scaling Playbook. My team has sent it to you by email.
+
+We put it together based on our experience how freight forwarders, brokers, and 3PLs actually scale operations using AI, without adding headcount.
+
+At STRUCTURE, we help teams implement those workflows in practice across quoting, documents, invoicing, finance, and customs.
+
+Have a look at the playbook when you get a chance, we hope it gives you useful context.`
 };
 
-// Note: Ebook sequence steps 3-37 will use VALUE_EMAILS (same as new_lead sequence)
+// Note: Ebook sequence steps 3+ will use VALUE_EMAILS (same as new_lead sequence)
 
 export default {
   CALENDAR_LINK,

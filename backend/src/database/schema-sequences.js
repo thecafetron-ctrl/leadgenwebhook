@@ -281,8 +281,8 @@ export const NO_SHOW_STEPS = [
  * Ebook delivery → 6hr follow-up → 35 days of value emails (daily)
  */
 export const EBOOK_NURTURE_STEPS = [
-  // Immediate - Ebook Delivery
-  { step_order: 1, name: 'Ebook Delivery', delay_value: 0, delay_unit: 'minutes', channel: 'email' },
+  // Immediate - Ebook Delivery (email + WhatsApp)
+  { step_order: 1, name: 'Ebook Delivery', delay_value: 0, delay_unit: 'minutes', channel: 'both' },
   
   // 6 hours - Follow-up with consultation CTA
   { step_order: 2, name: 'Ebook Follow-up', delay_value: 6, delay_unit: 'hours', channel: 'email' },

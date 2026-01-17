@@ -132,11 +132,12 @@ STRUCTURE Team`
   
   // ===== EBOOK SEQUENCE TEMPLATES =====
   
-  // Ebook Delivery (immediate - step 1)
+  // Ebook Delivery (immediate - step 1) - includes WhatsApp
   if (name.includes('ebook delivery')) {
     return {
       subject: EBOOK_EMAILS.ebook_delivery.subject,
-      body: EBOOK_EMAILS.ebook_delivery.body
+      body: EBOOK_EMAILS.ebook_delivery.body,
+      whatsapp: EBOOK_EMAILS.ebook_whatsapp
     };
   }
   
