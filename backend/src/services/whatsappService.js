@@ -115,8 +115,10 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial 
     return { success: false, error: 'Invalid phone number' };
   }
   
-  // Determine if this is an initial message based on stepOrder
-  const useInitialInstance = isInitial || stepOrder === 1;
+  // ONLY use isInitial flag - this is set correctly by the caller
+  // isInitial=true ONLY for new_lead sequence step 1
+  // Everything else (confirmations, reminders, value emails) uses Meta
+  const useInitialInstance = isInitial;
   
   // If not configured, log and return mock success
   if (!config) {
