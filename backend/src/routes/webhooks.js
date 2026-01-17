@@ -150,6 +150,18 @@ router.get('/logs/:id', async (req, res) => {
 });
 
 /**
+ * GET /api/webhooks/meta/debug - Debug endpoint to see query parsing
+ */
+router.get('/meta/debug', (req, res) => {
+  res.json({
+    rawQuery: req.query,
+    hubMode: req.query['hub.mode'],
+    hubNested: req.query.hub,
+    expectedToken: process.env.META_VERIFY_TOKEN || 'lead_pipeline_verify'
+  });
+});
+
+/**
  * GET /api/webhooks/meta - Meta verification
  * Note: Express may parse hub.mode as nested objects, so we check both formats
  */
