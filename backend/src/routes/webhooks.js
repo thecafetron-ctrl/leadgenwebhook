@@ -624,9 +624,11 @@ router.post('/ebook', async (req, res) => {
     try {
       logId = await WebhookLog.createWebhookLog({
         source: 'ebook',
-        event_type: 'ebook_signup',
+        endpoint: '/api/webhooks/ebook',
+        method: 'POST',
         payload: req.body,
         ip_address: clientIP,
+        user_agent: req.headers['user-agent'],
         headers: {
           'content-type': req.headers['content-type'],
           'user-agent': req.headers['user-agent']
