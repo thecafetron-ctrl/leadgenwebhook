@@ -1024,15 +1024,15 @@ We look forward to seeing you on the call.`
 // Ebook delivery → 6hr follow-up → 35 days of value emails
 // ============================================
 
-export const EBOOK_LINK = 'https://structurelogistics.com/ebook/90-day-logistics-scaling-playbook.pdf';
+export const EBOOK_LINK = 'https://structurelogistics.com/90-day-freight-scaling-playbook.pdf';
 
 export const EBOOK_EMAILS = {
   // Email 1: Immediate - Ebook Delivery
   ebook_delivery: {
-    subject: 'Your 90-Day Logistics Scaling Playbook',
+    subject: 'Your 90-Day Freight Scaling Playbook',
     body: `Hi {{first_name}},
 
-Thanks for requesting the <b>90-Day Logistics Scaling Playbook</b>.
+Thanks for requesting the <b>90-Day Freight Scaling Playbook</b>.
 
 You can download your copy using the link below:
 
@@ -1063,7 +1063,7 @@ Haarith Imran`
     subject: 'How companies use the playbook',
     body: `Hi {{first_name}},
 
-By now, you may have had a chance to skim through the 90-Day Logistics Scaling Playbook.
+By now, you may have had a chance to skim through the 90-Day Freight Scaling Playbook.
 
 One thing worth clarifying is that the playbook is not meant to be theoretical.
 
@@ -1097,7 +1097,7 @@ Haarith Imran`
   // WhatsApp message for ebook delivery (sent with email)
   ebook_whatsapp: `Hi {{first_name}},
 
-Thank you for requesting the 90-Day Logistics Scaling Playbook. My team has sent it to you by email.
+Thank you for requesting the 90-Day Freight Scaling Playbook. My team has sent it to you by email.
 
 We put it together based on our experience how freight forwarders, brokers, and 3PLs actually scale operations using AI, without adding headcount.
 
