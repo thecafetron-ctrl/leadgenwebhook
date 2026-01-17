@@ -358,18 +358,27 @@ router.post('/calcom', async (req, res) => {
       const nameParts = (attendee.name || '').split(' ');
       const responses = payload.responses || {};
       
-      const existingLead = await Lead.getLeadByEmailAndSource(attendee.email, 'calcom');
+      // CRITICAL: Match by email across ALL sources (not just calcom)
+      // This ensures a Meta lead who books via Cal.com gets matched correctly
+      const existingLead = await Lead.getLeadByEmail(attendee.email);
       
       if (existingLead) {
+        console.log(`✅ Matched Cal.com booking to existing lead: ${existingLead.id} (source: ${existingLead.source})`);
+        
+        // Update the existing lead with booking info
         await Lead.updateLead(existingLead.id, {
+          status: 'qualified', // Meeting booked = qualified
           custom_fields: {
             ...existingLead.custom_fields,
-            last_booking_title: payload.title,
-            last_booking_time: payload.startTime
+            calcom_booking_id: payload.uid,
+            booking_title: payload.title,
+            booking_time: payload.startTime,
+            booking_timezone: attendee.timeZone,
+            original_source: existingLead.source // Preserve original source
           }
         });
         
-        // Trigger meeting booked sequence
+        // Trigger meeting booked sequence (cancels new_lead sequence)
         try {
           await onMeetingBooked(existingLead.id, payload.startTime);
           console.log(`📅 Meeting booked sequence triggered for ${existingLead.id}`);
@@ -379,6 +388,9 @@ router.post('/calcom', async (req, res) => {
         
         leadsCreated.push(existingLead);
       } else {
+        // No existing lead - create new one (rare case: direct booking without form)
+        console.log(`📝 Creating new lead from Cal.com (no existing match for ${attendee.email})`);
+        
         const lead = await Lead.createLead({
           first_name: nameParts[0] || null,
           last_name: nameParts.slice(1).join(' ') || null,
@@ -386,14 +398,15 @@ router.post('/calcom', async (req, res) => {
           phone: responses.phone || attendee.phone || null,
           source: 'calcom',
           source_id: payload.uid,
+          status: 'qualified', // Direct booking = already qualified
           custom_fields: {
             calcom_booking_id: payload.uid,
             booking_title: payload.title,
             booking_time: payload.startTime,
-            timezone: attendee.timeZone,
+            booking_timezone: attendee.timeZone,
             ...responses
           },
-          notes: `Booked via Cal.com: ${payload.title}`
+          notes: `Direct booking via Cal.com: ${payload.title}`
         });
         
         // New lead from Cal.com = meeting already booked

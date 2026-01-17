@@ -102,6 +102,15 @@ export async function getLeadByEmailAndSource(email, source) {
 }
 
 /**
+ * Find lead by email (any source) - for matching Cal.com bookings to existing Meta leads
+ */
+export async function getLeadByEmail(email) {
+  if (!email) return null;
+  const result = await query('SELECT * FROM leads WHERE LOWER(email) = LOWER($1) ORDER BY created_at DESC LIMIT 1', [email]);
+  return result.rows[0] ? parseLead(result.rows[0]) : null;
+}
+
+/**
  * Get all leads with filtering, sorting, and pagination
  */
 export async function getLeads(options = {}) {
@@ -387,6 +396,7 @@ export default {
   createLead,
   getLeadById,
   getLeadByEmailAndSource,
+  getLeadByEmail,
   getLeads,
   updateLead,
   deleteLead,
