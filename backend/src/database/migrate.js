@@ -5,7 +5,7 @@
  */
 
 import { initDatabase, query, closeDatabase } from './connection.js';
-import { SEQUENCE_TABLES, DEFAULT_SEQUENCES, NEW_LEAD_SEQUENCE_STEPS, MEETING_BOOKED_STEPS, NO_SHOW_STEPS } from './schema-sequences.js';
+import { SEQUENCE_TABLES, DEFAULT_SEQUENCES, NEW_LEAD_SEQUENCE_STEPS, MEETING_BOOKED_STEPS, NO_SHOW_STEPS, EBOOK_NURTURE_STEPS } from './schema-sequences.js';
 
 const LEADS_TABLE = `
 CREATE TABLE IF NOT EXISTS leads (
@@ -131,6 +131,7 @@ async function seedDefaultSequences() {
       if (seq.slug === 'new_lead') steps = NEW_LEAD_SEQUENCE_STEPS;
       else if (seq.slug === 'meeting_booked') steps = MEETING_BOOKED_STEPS;
       else if (seq.slug === 'no_show') steps = NO_SHOW_STEPS;
+      else if (seq.slug === 'ebook_nurture') steps = EBOOK_NURTURE_STEPS;
       
       for (const step of steps) {
         await query(

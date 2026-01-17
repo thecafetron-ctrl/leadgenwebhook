@@ -21,7 +21,7 @@ export const LEAD_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 /**
  * Valid lead sources
  */
-export const LEAD_SOURCES = ['manual', 'meta_forms', 'calcom', 'api', 'import', 'website', 'referral'];
+export const LEAD_SOURCES = ['manual', 'meta_forms', 'calcom', 'api', 'import', 'website', 'referral', 'ebook'];
 
 /**
  * Create a new lead

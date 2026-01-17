@@ -601,4 +601,93 @@ router.post('/meta/poll', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/webhooks/ebook - Receive ebook signup leads
+ * 
+ * Expected payload:
+ * {
+ *   "email": "user@example.com",
+ *   "first_name": "John",
+ *   "last_name": "Doe",  // optional
+ *   "phone": "+1234567890", // optional
+ *   "company": "Acme Inc", // optional
+ *   "ebook_name": "Logistics Automation Guide" // optional, for tracking
+ * }
+ */
+router.post('/ebook', async (req, res) => {
+  const clientIP = getClientIP(req);
+  
+  // Log the webhook
+  const logId = await WebhookLog.createWebhookLog({
+    source: 'ebook',
+    event_type: 'ebook_signup',
+    payload: req.body,
+    ip_address: clientIP,
+    headers: {
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent']
+    }
+  });
+
+  try {
+    const { email, first_name, last_name, phone, company, ebook_name } = req.body;
+
+    // Validate required field
+    if (!email) {
+      await WebhookLog.markWebhookFailed(logId, 'Email is required', 400);
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+
+    // Check if lead already exists
+    let lead = await Lead.getLeadByEmail(email);
+    
+    if (lead) {
+      // Update existing lead with ebook info
+      console.log(`📚 Existing lead ${lead.id} signed up for ebook: ${ebook_name || 'default'}`);
+      await Lead.updateLead(lead.id, {
+        custom_fields: {
+          ...lead.custom_fields,
+          ebook_signup: true,
+          ebook_name: ebook_name || 'Logistics Automation Guide',
+          ebook_signup_date: new Date().toISOString()
+        }
+      });
+    } else {
+      // Create new lead
+      lead = await Lead.createLead({
+        first_name: first_name || null,
+        last_name: last_name || null,
+        email: email,
+        phone: phone || null,
+        company: company || null,
+        source: 'ebook',
+        custom_fields: {
+          ebook_signup: true,
+          ebook_name: ebook_name || 'Logistics Automation Guide',
+          ebook_signup_date: new Date().toISOString()
+        },
+        notes: `Ebook signup: ${ebook_name || 'Logistics Automation Guide'}`
+      });
+      console.log(`📚 New ebook lead created: ${lead.id} (${email})`);
+    }
+
+    // Enroll in ebook nurture sequence
+    const { enrollLead } = await import('../services/sequenceService.js');
+    await enrollLead(lead.id, 'ebook_nurture', 'ebook_webhook');
+    console.log(`📧 Enrolled ${lead.id} in ebook_nurture sequence`);
+
+    await WebhookLog.markWebhookProcessed(logId, lead.id, 200, 'Ebook lead processed');
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Ebook signup processed',
+      leadId: lead.id
+    });
+  } catch (error) {
+    console.error('Ebook webhook error:', error);
+    await WebhookLog.markWebhookFailed(logId, error.message, 500);
+    res.status(500).json({ success: false, error: 'Failed to process ebook signup' });
+  }
+});
+
 export default router;

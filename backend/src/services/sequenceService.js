@@ -19,7 +19,8 @@ import {
   CLOSING_EMAILS,
   CALENDAR_LINK, 
   OPERATIONAL_EMAILS,
-  WHATSAPP_MESSAGES 
+  WHATSAPP_MESSAGES,
+  EBOOK_EMAILS
 } from '../data/emailTemplates.js';
 
 /**
@@ -127,6 +128,54 @@ If you'd like to move forward, you can book a time <b><a href="${CALENDAR_LINK}"
 Best regards,
 STRUCTURE Team`
     };
+  }
+  
+  // ===== EBOOK SEQUENCE TEMPLATES =====
+  
+  // Ebook Delivery (immediate)
+  if (name.includes('ebook delivery')) {
+    return {
+      subject: EBOOK_EMAILS.ebook_delivery.subject,
+      body: EBOOK_EMAILS.ebook_delivery.body
+    };
+  }
+  
+  // Ebook Nurture emails (nurture_01 through nurture_23)
+  if (name.includes('nurture email') || name.includes('final nurture')) {
+    // Map step order to nurture email template
+    const nurtureMappings = {
+      2: 'nurture_01',
+      3: 'nurture_02',
+      4: 'nurture_03',
+      5: 'nurture_04',
+      6: 'nurture_05',
+      7: 'nurture_06',
+      8: 'nurture_07',
+      9: 'nurture_08',
+      10: 'nurture_09',
+      11: 'nurture_10',
+      12: 'nurture_11',
+      13: 'nurture_12',
+      14: 'nurture_13',
+      15: 'nurture_14',
+      16: 'nurture_15',
+      17: 'nurture_16',
+      18: 'nurture_17',
+      19: 'nurture_18',
+      20: 'nurture_19',
+      21: 'nurture_20',
+      22: 'nurture_21',
+      23: 'nurture_22',
+      24: 'nurture_23'
+    };
+    
+    const templateKey = nurtureMappings[stepOrder];
+    if (templateKey && EBOOK_EMAILS[templateKey]) {
+      return {
+        subject: EBOOK_EMAILS[templateKey].subject,
+        body: EBOOK_EMAILS[templateKey].body
+      };
+    }
   }
   
   // No match - return null (will fall back to value email)

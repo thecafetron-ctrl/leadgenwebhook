@@ -180,6 +180,12 @@ export const DEFAULT_SEQUENCES = [
     slug: 'newsletter',
     description: 'Regular value content for converted leads',
     trigger_type: 'newsletter'
+  },
+  {
+    name: 'Ebook Nurture',
+    slug: 'ebook_nurture',
+    description: 'Ebook delivery + 24 nurture emails over 100 days',
+    trigger_type: 'ebook_signup'
   }
 ];
 
@@ -270,4 +276,82 @@ export const NO_SHOW_STEPS = [
   { step_order: 24, name: 'Final Message', delay_value: 18, delay_unit: 'days', channel: 'email' }
 ];
 
-export default { SEQUENCE_TABLES, DEFAULT_SEQUENCES, NEW_LEAD_SEQUENCE_STEPS, MEETING_BOOKED_STEPS, NO_SHOW_STEPS };
+/**
+ * EBOOK NURTURE SEQUENCE
+ * Ebook delivery + 24 nurture emails over 100 days
+ */
+export const EBOOK_NURTURE_STEPS = [
+  // Immediate - Ebook Delivery
+  { step_order: 1, name: 'Ebook Delivery', delay_value: 0, delay_unit: 'minutes', channel: 'email' },
+  
+  // Day 2
+  { step_order: 2, name: 'Nurture Email #1', delay_value: 2, delay_unit: 'days', channel: 'email' },
+  
+  // Day 4
+  { step_order: 3, name: 'Nurture Email #2', delay_value: 4, delay_unit: 'days', channel: 'email' },
+  
+  // Day 7
+  { step_order: 4, name: 'Nurture Email #3', delay_value: 7, delay_unit: 'days', channel: 'email' },
+  
+  // Day 10
+  { step_order: 5, name: 'Nurture Email #4', delay_value: 10, delay_unit: 'days', channel: 'email' },
+  
+  // Day 14
+  { step_order: 6, name: 'Nurture Email #5', delay_value: 14, delay_unit: 'days', channel: 'email' },
+  
+  // Day 18
+  { step_order: 7, name: 'Nurture Email #6', delay_value: 18, delay_unit: 'days', channel: 'email' },
+  
+  // Day 22
+  { step_order: 8, name: 'Nurture Email #7', delay_value: 22, delay_unit: 'days', channel: 'email' },
+  
+  // Day 26
+  { step_order: 9, name: 'Nurture Email #8', delay_value: 26, delay_unit: 'days', channel: 'email' },
+  
+  // Day 30
+  { step_order: 10, name: 'Nurture Email #9', delay_value: 30, delay_unit: 'days', channel: 'email' },
+  
+  // Day 35
+  { step_order: 11, name: 'Nurture Email #10', delay_value: 35, delay_unit: 'days', channel: 'email' },
+  
+  // Day 40
+  { step_order: 12, name: 'Nurture Email #11', delay_value: 40, delay_unit: 'days', channel: 'email' },
+  
+  // Day 45
+  { step_order: 13, name: 'Nurture Email #12', delay_value: 45, delay_unit: 'days', channel: 'email' },
+  
+  // Day 50
+  { step_order: 14, name: 'Nurture Email #13', delay_value: 50, delay_unit: 'days', channel: 'email' },
+  
+  // Day 55
+  { step_order: 15, name: 'Nurture Email #14', delay_value: 55, delay_unit: 'days', channel: 'email' },
+  
+  // Day 60
+  { step_order: 16, name: 'Nurture Email #15', delay_value: 60, delay_unit: 'days', channel: 'email' },
+  
+  // Day 65
+  { step_order: 17, name: 'Nurture Email #16', delay_value: 65, delay_unit: 'days', channel: 'email' },
+  
+  // Day 70
+  { step_order: 18, name: 'Nurture Email #17', delay_value: 70, delay_unit: 'days', channel: 'email' },
+  
+  // Day 75
+  { step_order: 19, name: 'Nurture Email #18', delay_value: 75, delay_unit: 'days', channel: 'email' },
+  
+  // Day 80
+  { step_order: 20, name: 'Nurture Email #19', delay_value: 80, delay_unit: 'days', channel: 'email' },
+  
+  // Day 85
+  { step_order: 21, name: 'Nurture Email #20', delay_value: 85, delay_unit: 'days', channel: 'email' },
+  
+  // Day 90
+  { step_order: 22, name: 'Nurture Email #21', delay_value: 90, delay_unit: 'days', channel: 'email' },
+  
+  // Day 95
+  { step_order: 23, name: 'Nurture Email #22', delay_value: 95, delay_unit: 'days', channel: 'email' },
+  
+  // Day 100
+  { step_order: 24, name: 'Final Nurture Email', delay_value: 100, delay_unit: 'days', channel: 'email' }
+];
+
+export default { SEQUENCE_TABLES, DEFAULT_SEQUENCES, NEW_LEAD_SEQUENCE_STEPS, MEETING_BOOKED_STEPS, NO_SHOW_STEPS, EBOOK_NURTURE_STEPS };
