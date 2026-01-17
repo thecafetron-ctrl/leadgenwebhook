@@ -111,6 +111,15 @@ export async function getLeadByEmail(email) {
 }
 
 /**
+ * Find lead by source_id (Meta leadgen_id) - for deduplication
+ */
+export async function getLeadBySourceId(sourceId) {
+  if (!sourceId) return null;
+  const result = await query('SELECT * FROM leads WHERE source_id = $1 LIMIT 1', [sourceId]);
+  return result.rows[0] ? parseLead(result.rows[0]) : null;
+}
+
+/**
  * Get all leads with filtering, sorting, and pagination
  */
 export async function getLeads(options = {}) {
@@ -397,6 +406,7 @@ export default {
   getLeadById,
   getLeadByEmailAndSource,
   getLeadByEmail,
+  getLeadBySourceId,
   getLeads,
   updateLead,
   deleteLead,

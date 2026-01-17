@@ -49,6 +49,7 @@ import sequenceRoutes from './routes/sequences.js';
 // Import sequence service for scheduler
 import { processMessageQueue } from './services/sequenceService.js';
 import { initWhatsAppService } from './services/whatsappService.js';
+import { startMetaLeadsPoller } from './services/metaLeadsPoller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -459,6 +460,9 @@ async function startServer() {
     
     // Start message queue scheduler
     startMessageScheduler();
+    
+    // Start Meta leads poller (fallback for missed webhooks)
+    startMetaLeadsPoller();
 
     // Start server
     app.listen(PORT, () => {

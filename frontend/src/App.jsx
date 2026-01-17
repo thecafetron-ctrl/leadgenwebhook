@@ -13,11 +13,16 @@ import Evolution from './pages/Evolution';
 import WebhookLogs from './pages/WebhookLogs';
 import Playground from './pages/Playground';
 import Sequences from './pages/Sequences';
+import EbookLandingPage from './pages/EbookLandingPage';
 
 function App() {
   return (
     <AnimatePresence mode="wait">
       <Routes>
+        {/* Standalone landing page - no header/nav, accessible only via direct URL */}
+        <Route path="/ebook" element={<EbookLandingPage />} />
+        
+        {/* Main app routes with Layout (header/sidebar) */}
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="leads" element={<Leads />} />

@@ -587,4 +587,18 @@ router.post('/simulate/:type', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/webhooks/meta/poll - Manually trigger Meta leads poll
+ */
+router.post('/meta/poll', async (req, res) => {
+  try {
+    const { manualPoll } = await import('../services/metaLeadsPoller.js');
+    const processed = await manualPoll();
+    res.json({ success: true, message: `Polled Meta API`, leadsProcessed: processed });
+  } catch (error) {
+    console.error('Manual poll error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
