@@ -663,8 +663,13 @@ export async function onMeetingRescheduled(leadId, newMeetingTime) {
  * TAMPERPROOF: Won't duplicate - if already sent, skips. Auto will move to next.
  */
 export async function manualSendStep(leadId, stepId) {
-  // Get step details
-  const stepResult = await query('SELECT * FROM sequence_steps WHERE id = $1', [stepId]);
+  // Get step details with sequence slug
+  const stepResult = await query(`
+    SELECT ss.*, s.slug as sequence_slug 
+    FROM sequence_steps ss
+    JOIN sequences s ON ss.sequence_id = s.id
+    WHERE ss.id = $1
+  `, [stepId]);
   const step = stepResult.rows[0];
   if (!step) throw new Error('Step not found');
   
@@ -744,13 +749,14 @@ export async function manualSendStep(leadId, stepId) {
     });
   }
   
-  // Send WhatsApp - use correct instance based on step order
+  // Send WhatsApp - only new_lead step 1 uses Haarith, everything else uses Meta
   if ((step.channel === 'whatsapp' || step.channel === 'both') && lead.phone && content.whatsapp) {
+    const isFirstWelcome = step.sequence_slug === 'new_lead' && step.step_order === 1;
     await sendWhatsApp({ 
       phone: lead.phone, 
       message: content.whatsapp,
       stepOrder: step.step_order,
-      isInitial: step.step_order === 1
+      isInitial: isFirstWelcome
     });
   }
   
@@ -855,10 +861,12 @@ export async function processMessageQueue() {
     SELECT mq.*, 
            ls.lead_id, ls.status as sequence_status,
            ss.step_order, ss.email_subject, ss.email_body, ss.whatsapp_message,
+           s.slug as sequence_slug,
            l.first_name, l.last_name, l.email, l.phone
     FROM message_queue mq
     JOIN lead_sequences ls ON mq.lead_sequence_id = ls.id
     JOIN sequence_steps ss ON mq.sequence_step_id = ss.id
+    JOIN sequences s ON ls.sequence_id = s.id
     JOIN leads l ON mq.lead_id = l.id
     WHERE mq.status = 'pending'
     AND mq.scheduled_for <= NOW()
@@ -982,20 +990,21 @@ async function processMessage(msg) {
       status = 'failed';
     }
   } else if (msg.channel === 'whatsapp' && msg.phone) {
-    // CRITICAL: Pass stepOrder to determine which WhatsApp instance to use
-    // Step 1 = Haarith's number (lead instance)
-    // Step 2+ = Meta number (meta instance)
+    // CRITICAL: Only the FIRST welcome message (new_lead step 1) uses Haarith
+    // ALL other messages (confirmations, reminders, value emails) use Meta (+44)
+    const isFirstWelcome = msg.sequence_slug === 'new_lead' && stepOrder === 1;
+    
     const result = await sendWhatsApp({
       phone: msg.phone,
       message: content.whatsapp,
-      stepOrder: stepOrder,  // 1 = initial (Haarith), >1 = follow-up (Meta)
-      isInitial: stepOrder === 1
+      stepOrder: stepOrder,
+      isInitial: isFirstWelcome  // Only true for new_lead step 1
     });
     externalId = result.messageId;
     if (!result.success) {
       status = 'failed';
     }
-    console.log(`📱 WhatsApp sent via ${stepOrder === 1 ? 'Haarith (lead)' : 'Meta (+44)'} instance`);
+    console.log(`📱 WhatsApp sent via ${isFirstWelcome ? 'Haarith (lead)' : 'Meta (+44)'} instance`);
   }
   
   // Build metadata object

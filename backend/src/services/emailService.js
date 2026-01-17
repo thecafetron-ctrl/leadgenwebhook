@@ -51,17 +51,23 @@ export function initEmailService() {
 
 /**
  * Get email account for sending
- * Step 1 (initial/welcome): haarith@structurelogistics.com
- * Step 2+ (reminders, follow-ups, value emails): sales@structurelogistics.com
+ * 
+ * From Haarith (haarith@structurelogistics.com):
+ * - Welcome/Initial emails
+ * - Value emails
+ * - Booking confirmations
+ * 
+ * From Sales (sales@structurelogistics.com):
+ * - Meeting reminders (24hr, 6hr, 1hr)
+ * - No-show rebooking
  */
-function getEmailAccount(stepOrder = 1) {
+function getEmailAccount(stepOrder = 1, isReminder = false) {
   if (emailAccounts.length === 0) return null;
   if (emailAccounts.length === 1) return emailAccounts[0];
   
-  // Step 1 = initial email from Haarith
-  // All other steps = sales@
-  const useSecondAccount = stepOrder > 1;
-  return useSecondAccount ? emailAccounts[1] : emailAccounts[0];
+  // Only reminders use sales@ account
+  // Everything else (welcome, value, confirmation) uses haarith@
+  return isReminder ? emailAccounts[1] : emailAccounts[0];
 }
 
 /**
@@ -73,8 +79,9 @@ export function isEmailConfigured() {
 
 /**
  * Send a single email
+ * @param isReminder - If true, uses sales@ account for reminders
  */
-export async function sendEmail({ to, subject, html, text, from, stepOrder = 1 }) {
+export async function sendEmail({ to, subject, html, text, from, stepOrder = 1, isReminder = false }) {
   if (!resend) {
     throw new Error('Email service not configured. Set RESEND_API_KEY environment variable.');
   }
