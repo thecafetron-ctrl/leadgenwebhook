@@ -34,9 +34,9 @@ If there is a fit, we will outline what an automation rollout could realisticall
 
 To continue, please schedule your consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
-<b>Important:</b> Please use the same email address you filled the form with when booking.
-
 You will receive a calendar invite once you book.
+
+Note: Use the same email that you filled out the form with.
 
 We only run these sessions for logistics businesses above certain volume and budget thresholds, so please book only if you can attend the full 45 minutes.
 
@@ -978,7 +978,9 @@ Thanks for applying for automation.
 
 My team has sent you an email with the next step to schedule a 45-minute automation consultation.
 
-Please check your email when you get a chance and book a time that works for you. Use the same email you filled the form with.
+Please check your email when you get a chance and book a time that works for you.
+
+Note: Use the same email that you filled out the form with.
 
 Speak soon.`,
 
