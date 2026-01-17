@@ -38,8 +38,8 @@ export function initEmailService() {
   const email2 = process.env.EMAIL_FROM_2 || process.env.SMTP_USER_2 || 'sales@structurelogistics.com';
 
   emailAccounts = [
-    { from: email1, name: 'Haarith Imran' },
-    { from: email2, name: 'STRUCTURE AI' }
+    { from: email1, name: 'Haarith Imran' },    // Initial emails (step 1)
+    { from: email2, name: 'Haarith Imran' }     // Reminders & follow-ups (step 2+)
   ];
 
   console.log('✅ Email service initialized with Resend API');
@@ -50,16 +50,17 @@ export function initEmailService() {
 }
 
 /**
- * Get email account for sending (rotates based on step number)
- * Steps 1-12: Account 1
- * Steps 13-24: Account 2
+ * Get email account for sending
+ * Step 1 (initial/welcome): haarith@structurelogistics.com
+ * Step 2+ (reminders, follow-ups, value emails): sales@structurelogistics.com
  */
 function getEmailAccount(stepOrder = 1) {
   if (emailAccounts.length === 0) return null;
   if (emailAccounts.length === 1) return emailAccounts[0];
   
-  // Rotate at halfway point (step 12)
-  const useSecondAccount = stepOrder > 12;
+  // Step 1 = initial email from Haarith
+  // All other steps = sales@
+  const useSecondAccount = stepOrder > 1;
   return useSecondAccount ? emailAccounts[1] : emailAccounts[0];
 }
 
