@@ -380,8 +380,8 @@ async function scheduleSequenceMessages(enrollmentId, sequenceId, enrolledAt, me
       }
     }
     
-    // Skip any message scheduled in the past
-    if (scheduledTime <= now) {
+    // Skip any message scheduled in the past (but allow immediate messages with delay=0)
+    if (step.delay_value !== 0 && scheduledTime <= now) {
       console.log(`⏭️ Skipping step "${step.name}" - scheduled time is in the past`);
       continue;
     }
