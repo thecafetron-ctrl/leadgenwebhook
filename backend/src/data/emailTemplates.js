@@ -86,7 +86,7 @@ STRUCTURE Team`
   },
 
   // 24-hour reminder for scheduling (Step 6)
-  reminder_7day_not_booked: {
+  reminder_schedule: {
     subject: 'Following up on your automation application',
     body: `Hi {{first_name}},
 
@@ -107,6 +107,7 @@ STRUCTURE Team`
 
 // ============================================
 // VALUE EMAILS (35 total - randomized, no repeats)
+// Each one has a CTA with "here" linked to calendar
 // ============================================
 
 export const VALUE_EMAILS = [
@@ -128,6 +129,8 @@ What actually works is building automation around the specific bottlenecks that 
 The best time to automate is before you feel like you have to, but after you have enough volume to make it worthwhile.
 
 If you're shipping regularly and still relying on manual processes across quoting, ops, or invoicing, you're probably already past that point.
+
+If you want to assess where automation makes sense for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -151,6 +154,8 @@ And on any given day, it might be. But the cumulative cost of "good enough" show
 
 The irony is that fixing these problems isn't hard. It just requires being honest about where "good enough" is actually costing you.
 
+If you want to identify where inefficiency is hiding in your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -169,6 +174,8 @@ This is why some companies stay stuck at a certain revenue level and can't grow 
 
 It's not about working harder. It's about removing the constraint that made work hard in the first place.
 
+If you want to understand how automation could change your unit economics, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -186,6 +193,8 @@ What automation replaces is repetitive work. The same quote formats entered agai
 Once that work is automated, the people who were doing it are freed up to do something more valuable: solving problems, building relationships, expanding the business.
 
 Teams don't shrink. They shift. And the business becomes more resilient because it's not dependent on everyone doing manual tasks correctly every time.
+
+If you want to explore how automation could free up your team, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -211,6 +220,8 @@ Fixing throughput means more revenue from the same inputs. More output from the 
 
 That's where automation actually matters.
 
+If you want to identify where throughput is limiting your growth, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -227,6 +238,8 @@ If your quote process takes hours or days because it depends on manual inputs, c
 
 Automating the quote process doesn't just save time. It captures revenue that was leaking out the door.
 
+If you want to understand how automation could speed up your quoting, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -242,6 +255,8 @@ Customers want to know where their shipments are. That's reasonable. The problem
 If your team is copying and pasting tracking numbers, writing update emails manually, or fielding inbound calls asking "where's my shipment?" then a significant chunk of their day is going to a task that creates no value.
 
 Automated tracking updates don't just save time. They reduce customer anxiety, cut down on inbound support requests, and free your team to focus on exceptions that actually require attention.
+
+If you want to see how automated tracking could work for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -263,6 +278,8 @@ In logistics, margins are already tight. Letting invoicing slip just compresses 
 
 Automating the invoicing process — generating invoices from job data, sending them on time, syncing with accounting — is one of the simplest ways to stabilize the financial side of the business.
 
+If you want to explore how invoicing automation could improve your cash flow, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -278,6 +295,8 @@ Getting it wrong causes delays, fees, and unhappy customers. So teams spend hour
 But most of that data already exists somewhere in the system. The shipment details. The product classification. The origin and destination. The regulatory requirements.
 
 When automation pulls from that data and formats it correctly, compliance becomes a background process instead of a blocking one.
+
+If you want to understand how automation fits into your customs workflow, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -297,6 +316,8 @@ Connecting systems so that data flows automatically is usually the fastest win. 
 
 From there, you can build. But if your team is still acting as the bridge between platforms, that's the first thing to fix.
 
+If you want to identify the best starting point for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -314,6 +335,8 @@ When every shipment requires manual quoting, manual updates, and manual invoicin
 When those processes are automated, the cost per shipment drops. Suddenly, margins improve without raising prices or cutting corners.
 
 That's the real unlock.
+
+If you want to understand how automation could improve your margins, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -333,6 +356,8 @@ Right now, your team might handle tasks five different ways depending on who's d
 
 Consistency is what makes businesses scalable. Perfection comes later.
 
+If you want to explore how automation could bring consistency to your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -348,6 +373,8 @@ Not because they want to. Because the work has to get done, and they're the ones
 But when someone who could be managing relationships, solving problems, or growing the business is instead copying data into spreadsheets, that's a cost.
 
 Automation doesn't just save time. It lets talent do what they're actually good at.
+
+If you want to free up your best people for higher-value work, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -369,6 +396,8 @@ Automation creates visibility by default. Every event is logged. Every status is
 
 That changes how you manage.
 
+If you want to understand how automation could improve visibility in your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -386,6 +415,8 @@ The problem is usually the structure of the work itself. Manual processes create
 Automation flips that. Routine work gets handled in the background. The team focuses on decisions and exceptions, not repetition.
 
 That's when productivity actually improves.
+
+If you want to explore how automation could shift your team from busy to productive, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -405,6 +436,8 @@ That's the fragility of relying on personal knowledge. It doesn't transfer. It d
 
 Automation captures processes in systems, not people. So the business works even when someone's out.
 
+If you want to reduce your dependency on key individuals, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -422,6 +455,8 @@ Each one takes time to fix. Each one erodes customer trust. Each one distracts f
 When you're making the same kinds of mistakes repeatedly, the cumulative cost is real, even if each individual instance seems minor.
 
 Automation eliminates categories of mistakes. Not by making people more careful, but by removing the opportunity for error in the first place.
+
+If you want to identify where mistakes are costing you, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -441,6 +476,8 @@ The difference usually comes down to whether their systems scale with them. Manu
 
 If you're planning to grow, build the infrastructure that supports it. Not after it becomes painful — before.
 
+If you want to prepare your operation for scale, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -457,6 +494,8 @@ You can have the best sales team in the world, but if ops can't deliver, custome
 
 Improving customer experience in logistics isn't about adding more touchpoints or friendlier language. It's about making the core operations work reliably.
 
+If you want to improve customer experience through better operations, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -472,6 +511,8 @@ The best logistics companies don't just move goods. They run on systems that aut
 That doesn't mean building software from scratch. But it does mean integrating tools, automating workflows, and treating technology as a core part of operations — not an afterthought.
 
 The companies that figure this out tend to win. The ones that don't get left behind.
+
+If you want to understand how technology could give you a competitive edge, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -490,6 +531,8 @@ But headcount doesn't have to scale linearly with volume.
 When routine work is automated, your team handles more with less. You don't need to hire for tasks that systems can do better.
 
 That changes the economics. Instead of adding headcount to grow, you grow and then decide where people add the most value.
+
+If you want to explore how automation could change your headcount equation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -511,6 +554,8 @@ A job completes. The invoice is generated and sent the same day, synced to accou
 
 That's not the future. That's what's possible right now.
 
+If you want to see what automation could look like for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -529,6 +574,8 @@ Meanwhile, your team stays stuck in manual processes. Growth becomes harder. Mar
 
 You don't have to be first. But waiting too long has consequences.
 
+If you want to assess whether now is the right time for automation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -544,6 +591,8 @@ Not because we don't want to help smaller businesses, but because automation cre
 If you're doing a handful of shipments a month, manual processes are probably fine. The time saved from automation wouldn't outweigh the investment.
 
 But once you're moving real volume — where manual work becomes a bottleneck and errors have real consequences — that's when automation delivers returns.
+
+If you want to assess whether automation makes sense at your current scale, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -563,6 +612,8 @@ Instead of manually checking every task, you set the rules and monitor the excep
 
 You're still in charge. You're just not doing everything yourself.
 
+If you want to understand how automation could give you more control, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -581,6 +632,8 @@ It keeps you stuck in inefficiency because it's familiar. It blocks better optio
 
 At some point, what used to work becomes what holds you back. That's usually when it's time to change.
 
+If you want to evaluate whether your current processes are helping or holding you back, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -598,6 +651,8 @@ Evaluating automation comes down to a few questions:
 If the answers are "a lot," "too often," and "not fast enough," automation is probably worth exploring.
 
 If everything's running smoothly and efficiently without it, it might not be the priority yet.
+
+If you want help evaluating whether automation is right for your business, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -619,6 +674,8 @@ Each improvement feeds into the next. Over time, fast companies pull ahead not j
 
 That's why speed matters even when things are going fine. Fine doesn't compound. Fast does.
 
+If you want to understand how automation could make your operation faster, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -634,6 +691,8 @@ It usually shows up as growing pains: missed deadlines, frustrated staff, custom
 That's the tipping point. The moment where what got you here won't get you further.
 
 Recognizing it early gives you time to fix it before it becomes a crisis. Waiting until it's obvious usually means you're already behind.
+
+If you want to assess whether you're approaching that tipping point, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -653,6 +712,8 @@ Data gets stuck in silos. Information has to be transferred manually. Nothing fl
 
 Automation, at its core, is about making systems work together. When they do, the sum becomes greater than the parts.
 
+If you want to explore how your systems could be better connected, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -668,6 +729,8 @@ But strategy without implementation is worthless.
 Automation projects fail when they get stuck in planning. When teams debate endlessly without doing. When "we should" never becomes "we did."
 
 Execution matters. Shipping something imperfect and iterating beats planning something perfect and never launching.
+
+If you want to move from strategy to implementation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -686,6 +749,8 @@ The invoice that arrives right on time.
 No fanfare. No special effort. Just consistent execution that happens in the background.
 
 That's the goal — not a complex system to admire, but one that works so well you forget it's there.
+
+If you want to explore what invisible automation could look like for you, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -707,6 +772,8 @@ The ones that struggle do the opposite. They wait until things break before fixi
 
 It's not about being bigger. It's about being better at handling growth.
 
+If you want to build the foundation for sustainable scale, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -725,6 +792,8 @@ Poor processes mean delays, confusion, mistakes, and frustration.
 
 Investing in process — and automating it — is investing in the product itself.
 
+If you want to improve your processes through automation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -741,7 +810,7 @@ But not having expertise doesn't mean not moving forward. It means partnering wi
 
 That's what we do at STRUCTURE. We bring the automation experience so you don't have to build it from scratch.
 
-If you're ready to explore what that looks like, we're here.
+If you're ready to explore what that looks like, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -755,70 +824,92 @@ STRUCTURE Team`
 export const CLOSING_EMAILS = [
   {
     id: 'closing_1',
-    subject: 'Final follow-up on your automation interest',
+    subject: 'At this point, one of two things is true',
     body: `Hi {{first_name}},
 
-This is our final follow-up regarding automation.
+At this point, one of two things is true.
 
-If you'd still like to explore how automation can help your logistics operations, you can schedule a consultation with our team <b><a href="${CALENDAR_LINK}">here</a></b>.
+Either automation is relevant for your operation right now, or it is not.
 
-If now isn't the right time, no action is needed. We'll be here if things change.
+If it is not, you can safely ignore this and there is nothing further to do.
+
+If it is, then the next logical step is the 45-minute automation consultation, where we assess fit and decide whether it makes sense to move forward.
+
+There is no obligation and no follow-up pressure either way.
+
+If you want clarity, you can book the session <b><a href="${CALENDAR_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
   },
   {
     id: 'closing_2',
-    subject: 'Closing the loop',
+    subject: 'We do not continue outreach indefinitely',
     body: `Hi {{first_name}},
 
-We've reached out a few times now about automation for your logistics operations.
+We do not continue outreach indefinitely.
 
-Since we haven't connected, we'll assume the timing isn't right.
+The consultation exists for teams that want to evaluate automation seriously and decide whether it is worth pursuing.
 
-If that changes, you know where to find us. We're always happy to have a conversation when it makes sense.
+If that is not you right now, no action is needed and this will be our last email.
+
+If it is, the consultation is the correct next step and can be booked <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+Either way, this closes the loop.
 
 Best regards,
 STRUCTURE Team`
   },
   {
     id: 'closing_3',
-    subject: 'Last note from STRUCTURE',
+    subject: 'Automation only makes sense for certain teams',
     body: `Hi {{first_name}},
 
-We'll stop reaching out after this message.
+Automation only makes sense for teams that are genuinely open to changing how work is done.
 
-If automation becomes a priority, our door is open. You can schedule time with our team whenever it makes sense <b><a href="${CALENDAR_LINK}">here</a></b>.
+If your current setup is acceptable, even if imperfect, then staying as you are is often the right decision.
 
-Until then, wishing you continued success with your business.
+If, however, you are actively evaluating how to reduce manual work, improve speed, or scale more cleanly, then a structured review is necessary before making any commitments.
+
+That review happens in the consultation.
+
+If that is relevant, you can book it <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+If not, no further action is required.
 
 Best regards,
 STRUCTURE Team`
   },
   {
     id: 'closing_4',
-    subject: 'No more emails from us',
+    subject: 'Most teams reach a decision point',
     body: `Hi {{first_name}},
 
-This will be our last message.
+Most teams reach a point where they either move forward or consciously decide not to.
 
-If you'd like to discuss automation at any point in the future, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+Waiting without deciding usually just preserves the current state.
 
-Thanks for your time, and best of luck with your logistics operations.
+The consultation exists to help you make that decision with clarity, not pressure.
+
+If you want to assess fit, timing, and feasibility properly, you can do so <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+If not, this will be our final follow-up.
 
 Best regards,
 STRUCTURE Team`
   },
   {
     id: 'closing_5',
-    subject: 'Signing off',
+    subject: 'Final message',
     body: `Hi {{first_name}},
 
-We've sent a few messages about automation but haven't connected.
+This will be our final message.
 
-We'll leave things here. If circumstances change and you want to explore how automation could help your business, feel free to reach out.
+If automation is a priority for your business, the consultation is the appropriate next step and can be booked <b><a href="${CALENDAR_LINK}">here</a></b>.
 
-Take care.
+If it is not a priority right now, no response is needed.
+
+Either way, we appreciate you taking the time to review the information.
 
 Best regards,
 STRUCTURE Team`
@@ -842,34 +933,38 @@ Please check your email when you get a chance and book a time that works for you
 Speak soon.`,
 
   // Meeting confirmation
-  meeting_confirmation: `Hi {{first_name}}, this is a quick confirmation that your automation consultation with STRUCTURE is scheduled.
+  meeting_confirmation: `Hi {{first_name}},
 
-You should have received a calendar invite. Please make sure to confirm your attendance.
+Just confirming your automation consultation with STRUCTURE is booked.
 
-If anything changes, you can reschedule using the link in the invite.
+Please check your email and click Yes in the confirmation message so we know you're all set.
 
-Looking forward to the call.`,
+Looking forward to the session.`,
 
   // 24hr reminder
-  reminder_24hr: `Hi {{first_name}}, just a quick reminder that your automation consultation with STRUCTURE is tomorrow.
+  reminder_24hr: `Hi {{first_name}},
 
-Please make sure you're available for the full 45 minutes. If you need to reschedule, use the link in your calendar invite.
+Quick reminder: Your automation consultation with STRUCTURE is tomorrow.
 
-Talk soon.`,
+Please click Yes on the calendar invite if you haven't already.
+
+See you then.`,
 
   // 1hr reminder
-  reminder_1hr: `Hi {{first_name}}, your automation consultation is in about an hour.
+  reminder_1hr: `Hi {{first_name}},
 
-Make sure you have a quiet space and a stable connection. We'll be going through your logistics operations in detail.
+Your consultation starts in 1 hour. Please be ready to join via the link in your calendar.
 
 See you shortly.`,
 
   // No-show follow-up
-  no_show: `Hi {{first_name}}, we missed you on the call today.
+  no_show: `Hi {{first_name}},
 
-If automation is still something you're interested in, let us know and we can reschedule.
+You missed your scheduled automation consultation with STRUCTURE today.
 
-No pressure either way.`
+If automation is still a priority, my team has sent you an email with the option to reschedule.
+
+We look forward to seeing you on the call.`
 };
 
 export default {
