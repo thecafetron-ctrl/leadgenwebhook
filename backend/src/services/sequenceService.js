@@ -895,6 +895,20 @@ export async function processMessageQueue() {
  * Process a single message
  */
 async function processMessage(msg) {
+  // CRITICAL: Use UPDATE ... WHERE to atomically claim this message
+  // This prevents race conditions when multiple processes try to send the same message
+  const claimed = await query(`
+    UPDATE message_queue 
+    SET status = 'processing' 
+    WHERE id = $1 AND status = 'pending'
+    RETURNING id
+  `, [msg.id]);
+  
+  if (claimed.rows.length === 0) {
+    console.log(`⚠️ Message ${msg.id} already being processed or sent`);
+    return;
+  }
+  
   // CRITICAL: Check if already sent (double-check)
   const alreadySent = await query(`
     SELECT id FROM sent_messages 
@@ -906,9 +920,6 @@ async function processMessage(msg) {
     await query('UPDATE message_queue SET status = $1 WHERE id = $2', ['sent', msg.id]);
     return;
   }
-  
-  // Mark as processing
-  await query('UPDATE message_queue SET status = $1 WHERE id = $2', ['processing', msg.id]);
   
   // Get step name for template lookup
   const stepResult = await query('SELECT name, step_order FROM sequence_steps WHERE id = $1', [msg.sequence_step_id]);
