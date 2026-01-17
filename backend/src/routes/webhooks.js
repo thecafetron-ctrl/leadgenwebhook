@@ -158,16 +158,29 @@ router.get('/meta', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
   
-  console.log('Meta verification:', { mode, token, challenge });
+  console.log('Meta verification request:', { 
+    mode, 
+    token, 
+    challenge, 
+    expectedToken: verifyToken,
+    match: token === verifyToken
+  });
   
+  // Accept verification if mode and token match
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('✅ Meta webhook verified');
+    console.log('✅ Meta webhook verified successfully');
     res.set('Content-Type', 'text/plain');
-    res.status(200).send(challenge);
-  } else {
-    console.log('❌ Meta verification failed');
-    res.status(403).send('Forbidden');
+    return res.status(200).send(challenge);
   }
+  
+  // Log why it failed
+  if (mode !== 'subscribe') {
+    console.log(`❌ Meta verification failed: mode is "${mode}" not "subscribe"`);
+  } else if (token !== verifyToken) {
+    console.log(`❌ Meta verification failed: token mismatch. Got "${token}", expected "${verifyToken}"`);
+  }
+  
+  res.status(403).send('Forbidden');
 });
 
 /**
