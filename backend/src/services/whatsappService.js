@@ -35,16 +35,19 @@ export async function initWhatsAppService() {
   }
   
   // Fall back to environment variables
-  if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
+  if (process.env.EVOLUTION_API_URL) {
     config = {
       api_url: process.env.EVOLUTION_API_URL,
-      api_key: process.env.EVOLUTION_API_KEY,
-      instance_initial: process.env.EVOLUTION_INSTANCE_INITIAL || process.env.EVOLUTION_INSTANCE || 'lead',
-      instance_followup: process.env.EVOLUTION_INSTANCE_FOLLOWUP || 'meta'
+      // Initial messages (Haarith)
+      instance_initial: process.env.EVOLUTION_INSTANCE_INITIAL || 'lead',
+      api_key_initial: process.env.EVOLUTION_API_KEY_INITIAL || process.env.EVOLUTION_API_KEY,
+      // Follow-up messages (Meta +44)
+      instance_followup: process.env.EVOLUTION_INSTANCE_FOLLOWUP || 'meta',
+      api_key_followup: process.env.EVOLUTION_API_KEY_FOLLOWUP || process.env.EVOLUTION_API_KEY
     };
     console.log('✅ WhatsApp service initialized with dual instances:');
-    console.log(`   Initial messages: ${config.instance_initial}`);
-    console.log(`   Follow-up messages: ${config.instance_followup}`);
+    console.log(`   Initial (Haarith): ${config.instance_initial}`);
+    console.log(`   Follow-up (Meta): ${config.instance_followup}`);
     return true;
   }
   
@@ -76,18 +79,25 @@ function formatPhoneNumber(phone) {
 }
 
 /**
- * Get the appropriate instance based on message type
+ * Get the appropriate instance and API key based on message type
  * @param isInitial - true for welcome/confirmation messages, false for follow-ups
+ * @returns { instance, apiKey }
  */
-function getInstance(isInitial = false) {
+function getInstanceConfig(isInitial = false) {
   if (!config) return null;
   
   // For initial messages (step 1), use the "lead" instance (Haarith)
   // For follow-ups (step 2+), use the "meta" instance (+44 number)
   if (isInitial) {
-    return config.instance_initial || config.instance_name || 'lead';
+    return {
+      instance: config.instance_initial || 'lead',
+      apiKey: config.api_key_initial || config.api_key
+    };
   }
-  return config.instance_followup || 'meta';
+  return {
+    instance: config.instance_followup || 'meta',
+    apiKey: config.api_key_followup || config.api_key
+  };
 }
 
 /**
@@ -118,10 +128,11 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial 
   }
   
   try {
-    const instanceName = getInstance(useInitialInstance);
+    const instanceConfig = getInstanceConfig(useInitialInstance);
+    const { instance: instanceName, apiKey } = instanceConfig;
     const endpoint = `${config.api_url}/message/sendText/${instanceName}`;
     
-    console.log(`📱 Sending WhatsApp via instance "${instanceName}" (${useInitialInstance ? 'initial' : 'follow-up'})`);
+    console.log(`📱 Sending WhatsApp via "${instanceName}" (${useInitialInstance ? 'Haarith' : 'Meta +44'})`);
     
     const payload = {
       number: formattedPhone,
@@ -140,7 +151,7 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': config.api_key
+        'apikey': apiKey
       },
       body: JSON.stringify(payload)
     });
@@ -182,14 +193,15 @@ export async function sendWhatsAppTemplate({ phone, templateId, variables = {}, 
     return { success: false, error: 'Not configured or invalid phone' };
   }
   
-  const instanceName = getInstance(isInitial);
+  const instanceConfig = getInstanceConfig(isInitial);
+  const { instance: instanceName, apiKey } = instanceConfig;
   
   try {
     const response = await fetch(`${config.api_url}/message/sendTemplate/${instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': config.api_key
+        'apikey': apiKey
       },
       body: JSON.stringify({
         number: formattedPhone,
@@ -234,8 +246,8 @@ export async function getWhatsAppStatus() {
   
   try {
     const instances = [
-      { name: config.instance_initial || 'lead', type: 'initial' },
-      { name: config.instance_followup || 'meta', type: 'followup' }
+      { name: config.instance_initial || 'lead', type: 'initial', apiKey: config.api_key_initial },
+      { name: config.instance_followup || 'meta', type: 'followup', apiKey: config.api_key_followup }
     ];
     
     const statuses = {};
@@ -243,7 +255,7 @@ export async function getWhatsAppStatus() {
     for (const inst of instances) {
       try {
         const response = await fetch(`${config.api_url}/instance/connectionState/${inst.name}`, {
-          headers: { 'apikey': config.api_key }
+          headers: { 'apikey': inst.apiKey }
         });
         const data = await response.json();
         statuses[inst.type] = {
