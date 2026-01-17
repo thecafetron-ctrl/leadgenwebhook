@@ -333,9 +333,18 @@ export async function enrollLead(leadId, sequenceSlug, options = {}) {
 
 /**
  * Schedule all messages for a sequence enrollment
+ * CRITICAL: For reminders (negative delays), only schedule if there's enough buffer time
+ * - 24hr reminder: Only if meeting is 37+ hours away (13hr buffer)
+ * - 6hr reminder: Only if meeting is 7+ hours away (1hr buffer)  
+ * - 1hr reminder: Only if meeting is 2+ hours away (1hr buffer)
  */
 async function scheduleSequenceMessages(enrollmentId, sequenceId, enrolledAt, meetingTime) {
   const steps = await getSequenceSteps(sequenceId);
+  const now = new Date();
+  
+  // Get lead_id from enrollment once
+  const enrollment = await query('SELECT lead_id FROM lead_sequences WHERE id = $1', [enrollmentId]);
+  const leadId = enrollment.rows[0].lead_id;
   
   for (const step of steps) {
     if (!step.is_active) continue;
@@ -347,43 +356,72 @@ async function scheduleSequenceMessages(enrollmentId, sequenceId, enrolledAt, me
       meetingTime
     );
     
-    // Get lead_id from enrollment
-    const enrollment = await query('SELECT lead_id FROM lead_sequences WHERE id = $1', [enrollmentId]);
-    const leadId = enrollment.rows[0].lead_id;
+    // CRITICAL: Skip if scheduled time is in the past or too close
+    const scheduledTime = new Date(scheduledFor);
+    const msUntilScheduled = scheduledTime.getTime() - now.getTime();
+    const hoursUntilScheduled = msUntilScheduled / (1000 * 60 * 60);
+    
+    // For reminders (negative delay), require minimum buffer
+    if (step.delay_value < 0) {
+      // 24hr reminder needs 13hr buffer (so meeting must be 37hr+ away)
+      if (step.delay_value === -24 && hoursUntilScheduled < 13) {
+        console.log(`⏭️ Skipping 24hr reminder - only ${hoursUntilScheduled.toFixed(1)}hr until scheduled (need 13hr buffer)`);
+        continue;
+      }
+      // 6hr reminder needs 1hr buffer (so meeting must be 7hr+ away)
+      if (step.delay_value === -6 && hoursUntilScheduled < 1) {
+        console.log(`⏭️ Skipping 6hr reminder - only ${hoursUntilScheduled.toFixed(1)}hr until scheduled`);
+        continue;
+      }
+      // 1hr reminder needs 30min buffer
+      if (step.delay_value === -1 && hoursUntilScheduled < 0.5) {
+        console.log(`⏭️ Skipping 1hr reminder - only ${hoursUntilScheduled.toFixed(1)}hr until scheduled`);
+        continue;
+      }
+    }
+    
+    // Skip any message scheduled in the past
+    if (scheduledTime <= now) {
+      console.log(`⏭️ Skipping step "${step.name}" - scheduled time is in the past`);
+      continue;
+    }
     
     // Schedule email if channel includes email
     if (step.channel === 'email' || step.channel === 'both') {
-      await scheduleMessage(leadId, enrollmentId, step.id, 'email', scheduledFor);
+      await scheduleMessage(leadId, enrollmentId, step.id, 'email', scheduledFor, step.step_order);
     }
     
     // Schedule WhatsApp if channel includes whatsapp
     if (step.channel === 'whatsapp' || step.channel === 'both') {
-      await scheduleMessage(leadId, enrollmentId, step.id, 'whatsapp', scheduledFor);
+      await scheduleMessage(leadId, enrollmentId, step.id, 'whatsapp', scheduledFor, step.step_order);
     }
   }
 }
 
 /**
  * Schedule a single message
+ * @param stepOrder - Used to determine which WhatsApp instance to use (1 = initial, >1 = follow-up)
  */
-async function scheduleMessage(leadId, enrollmentId, stepId, channel, scheduledFor) {
-  // Check if already scheduled or sent
+async function scheduleMessage(leadId, enrollmentId, stepId, channel, scheduledFor, stepOrder = 1) {
+  // CRITICAL: Double-check not already scheduled
   const existing = await query(`
     SELECT id FROM message_queue 
     WHERE lead_sequence_id = $1 AND sequence_step_id = $2 AND channel = $3
   `, [enrollmentId, stepId, channel]);
   
   if (existing.rows.length > 0) {
+    console.log(`⚠️ Message already scheduled for step ${stepId}, channel ${channel}`);
     return; // Already scheduled
   }
   
-  // Check if already sent
+  // CRITICAL: Double-check not already sent - NEVER SEND TWICE
   const sent = await query(`
     SELECT id FROM sent_messages 
     WHERE lead_id = $1 AND sequence_step_id = $2 AND channel = $3
   `, [leadId, stepId, channel]);
   
   if (sent.rows.length > 0) {
+    console.log(`⚠️ Message already SENT for step ${stepId}, channel ${channel} - skipping`);
     return; // Already sent - NEVER SEND TWICE
   }
   
@@ -706,9 +744,14 @@ export async function manualSendStep(leadId, stepId) {
     });
   }
   
-  // Send WhatsApp
+  // Send WhatsApp - use correct instance based on step order
   if ((step.channel === 'whatsapp' || step.channel === 'both') && lead.phone && content.whatsapp) {
-    await sendWhatsApp({ phone: lead.phone, message: content.whatsapp });
+    await sendWhatsApp({ 
+      phone: lead.phone, 
+      message: content.whatsapp,
+      stepOrder: step.step_order,
+      isInitial: step.step_order === 1
+    });
   }
   
   // Record sent message
@@ -928,14 +971,20 @@ async function processMessage(msg) {
       status = 'failed';
     }
   } else if (msg.channel === 'whatsapp' && msg.phone) {
+    // CRITICAL: Pass stepOrder to determine which WhatsApp instance to use
+    // Step 1 = Haarith's number (lead instance)
+    // Step 2+ = Meta number (meta instance)
     const result = await sendWhatsApp({
       phone: msg.phone,
-      message: content.whatsapp
+      message: content.whatsapp,
+      stepOrder: stepOrder,  // 1 = initial (Haarith), >1 = follow-up (Meta)
+      isInitial: stepOrder === 1
     });
     externalId = result.messageId;
     if (!result.success) {
       status = 'failed';
     }
+    console.log(`📱 WhatsApp sent via ${stepOrder === 1 ? 'Haarith (lead)' : 'Meta (+44)'} instance`);
   }
   
   // Build metadata object

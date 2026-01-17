@@ -1,12 +1,15 @@
 /**
  * WhatsApp Service - Evolution API Integration
  * 
- * Sends WhatsApp messages via Evolution API.
+ * DUAL INSTANCE SUPPORT:
+ * - Instance "lead" (Haarith): Used for INITIAL messages (welcome, confirmation)
+ * - Instance "meta" (+44 number): Used for FOLLOW-UP messages (reminders, value emails)
  * 
  * Required Environment Variables:
- * - EVOLUTION_API_URL: Your Evolution API instance URL
+ * - EVOLUTION_API_URL: Your Evolution API instance URL (e.g., https://evolution-production-3990.up.railway.app)
  * - EVOLUTION_API_KEY: Your Evolution API key
- * - EVOLUTION_INSTANCE: Your WhatsApp instance name
+ * - EVOLUTION_INSTANCE_INITIAL: Instance for initial messages (default: "lead")
+ * - EVOLUTION_INSTANCE_FOLLOWUP: Instance for follow-up messages (default: "meta")
  */
 
 import { query } from '../database/connection.js';
@@ -36,9 +39,12 @@ export async function initWhatsAppService() {
     config = {
       api_url: process.env.EVOLUTION_API_URL,
       api_key: process.env.EVOLUTION_API_KEY,
-      instance_name: process.env.EVOLUTION_INSTANCE || 'default'
+      instance_initial: process.env.EVOLUTION_INSTANCE_INITIAL || process.env.EVOLUTION_INSTANCE || 'lead',
+      instance_followup: process.env.EVOLUTION_INSTANCE_FOLLOWUP || 'meta'
     };
-    console.log('✅ WhatsApp service initialized from env');
+    console.log('✅ WhatsApp service initialized with dual instances:');
+    console.log(`   Initial messages: ${config.instance_initial}`);
+    console.log(`   Follow-up messages: ${config.instance_followup}`);
     return true;
   }
   
@@ -70,14 +76,36 @@ function formatPhoneNumber(phone) {
 }
 
 /**
- * Send WhatsApp message via Evolution API
+ * Get the appropriate instance based on message type
+ * @param isInitial - true for welcome/confirmation messages, false for follow-ups
  */
-export async function sendWhatsApp({ phone, message, mediaUrl = null }) {
+function getInstance(isInitial = false) {
+  if (!config) return null;
+  
+  // For initial messages (step 1), use the "lead" instance (Haarith)
+  // For follow-ups (step 2+), use the "meta" instance (+44 number)
+  if (isInitial) {
+    return config.instance_initial || config.instance_name || 'lead';
+  }
+  return config.instance_followup || 'meta';
+}
+
+/**
+ * Send WhatsApp message via Evolution API
+ * @param phone - Phone number to send to
+ * @param message - Message text
+ * @param isInitial - If true, sends from Haarith's number; if false, sends from Meta number
+ * @param stepOrder - Step number (1 = initial, >1 = follow-up)
+ */
+export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial = false, stepOrder = 1 }) {
   const formattedPhone = formatPhoneNumber(phone);
   
   if (!formattedPhone) {
     return { success: false, error: 'Invalid phone number' };
   }
+  
+  // Determine if this is an initial message based on stepOrder
+  const useInitialInstance = isInitial || stepOrder === 1;
   
   // If not configured, log and return mock success
   if (!config) {
@@ -90,7 +118,10 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null }) {
   }
   
   try {
-    const endpoint = `${config.api_url}/message/sendText/${config.instance_name}`;
+    const instanceName = getInstance(useInitialInstance);
+    const endpoint = `${config.api_url}/message/sendText/${instanceName}`;
+    
+    console.log(`📱 Sending WhatsApp via instance "${instanceName}" (${useInitialInstance ? 'initial' : 'follow-up'})`);
     
     const payload = {
       number: formattedPhone,
@@ -99,7 +130,7 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null }) {
     
     // If there's media, use different endpoint
     if (mediaUrl) {
-      const mediaEndpoint = `${config.api_url}/message/sendMedia/${config.instance_name}`;
+      const mediaEndpoint = `${config.api_url}/message/sendMedia/${instanceName}`;
       payload.mediatype = 'image';
       payload.media = mediaUrl;
       payload.caption = message;
@@ -117,14 +148,15 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null }) {
     const data = await response.json();
     
     if (response.ok && data.key?.id) {
-      console.log(`✅ WhatsApp sent to ${formattedPhone}`);
+      console.log(`✅ WhatsApp sent to ${formattedPhone} via ${instanceName}`);
       return {
         success: true,
         messageId: data.key.id,
-        status: data.status
+        status: data.status,
+        instance: instanceName
       };
     } else {
-      console.error(`❌ WhatsApp failed:`, data);
+      console.error(`❌ WhatsApp failed via ${instanceName}:`, data);
       return {
         success: false,
         error: data.message || 'Failed to send WhatsApp',
@@ -143,17 +175,17 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null }) {
 /**
  * Send WhatsApp template message
  */
-export async function sendWhatsAppTemplate({ phone, templateId, variables = {} }) {
+export async function sendWhatsAppTemplate({ phone, templateId, variables = {}, isInitial = false }) {
   const formattedPhone = formatPhoneNumber(phone);
   
   if (!formattedPhone || !config) {
     return { success: false, error: 'Not configured or invalid phone' };
   }
   
+  const instanceName = getInstance(isInitial);
+  
   try {
-    const endpoint = `${config.api_url}/message/sendTemplate/${config.instance_name}`;
-    
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${config.api_url}/message/sendTemplate/${instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -163,89 +195,124 @@ export async function sendWhatsAppTemplate({ phone, templateId, variables = {} }
         number: formattedPhone,
         template: templateId,
         language: 'en',
-        components: Object.entries(variables).map(([key, value]) => ({
-          type: 'body',
-          parameters: [{ type: 'text', text: value }]
-        }))
+        variables
       })
     });
     
     const data = await response.json();
     
-    return {
-      success: response.ok,
-      messageId: data.key?.id,
-      error: data.message
-    };
+    if (response.ok) {
+      return {
+        success: true,
+        messageId: data.key?.id,
+        instance: instanceName
+      };
+    } else {
+      return {
+        success: false,
+        error: data.message || 'Failed to send template'
+      };
+    }
   } catch (error) {
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message
+    };
   }
 }
 
 /**
- * Check WhatsApp connection status
+ * Check WhatsApp connection status for both instances
  */
 export async function getWhatsAppStatus() {
   if (!config) {
-    return { connected: false, reason: 'Not configured' };
+    return { 
+      connected: false, 
+      message: 'WhatsApp service not configured' 
+    };
   }
   
   try {
-    const response = await fetch(
-      `${config.api_url}/instance/connectionState/${config.instance_name}`,
-      {
-        headers: { 'apikey': config.api_key }
-      }
-    );
+    const instances = [
+      { name: config.instance_initial || 'lead', type: 'initial' },
+      { name: config.instance_followup || 'meta', type: 'followup' }
+    ];
     
-    const data = await response.json();
+    const statuses = {};
+    
+    for (const inst of instances) {
+      try {
+        const response = await fetch(`${config.api_url}/instance/connectionState/${inst.name}`, {
+          headers: { 'apikey': config.api_key }
+        });
+        const data = await response.json();
+        statuses[inst.type] = {
+          instance: inst.name,
+          state: data.instance?.state || 'unknown',
+          connected: data.instance?.state === 'open'
+        };
+      } catch (e) {
+        statuses[inst.type] = {
+          instance: inst.name,
+          state: 'error',
+          connected: false,
+          error: e.message
+        };
+      }
+    }
     
     return {
-      connected: data.state === 'open',
-      state: data.state,
-      instance: config.instance_name
+      connected: statuses.initial?.connected || statuses.followup?.connected,
+      instances: statuses
     };
   } catch (error) {
-    return { connected: false, error: error.message };
+    return {
+      connected: false,
+      message: error.message
+    };
   }
 }
 
 /**
- * Save WhatsApp config to database
+ * Save WhatsApp configuration to database
  */
-export async function saveWhatsAppConfig(newConfig) {
-  const { instance_name, api_url, api_key } = newConfig;
+export async function saveWhatsAppConfig(configData) {
+  const { api_url, api_key, instance_initial, instance_followup } = configData;
   
   // Deactivate existing configs
-  await query("UPDATE whatsapp_config SET is_active = false");
+  await query('UPDATE whatsapp_config SET is_active = false WHERE is_active = true');
   
   // Insert new config
   const result = await query(`
-    INSERT INTO whatsapp_config (instance_name, api_url, api_key, is_active)
+    INSERT INTO whatsapp_config (api_url, api_key, instance_name, is_active)
     VALUES ($1, $2, $3, true)
     RETURNING *
-  `, [instance_name, api_url, api_key]);
+  `, [api_url, api_key, instance_initial || 'lead']);
   
   // Update local config
-  config = result.rows[0];
+  config = {
+    api_url,
+    api_key,
+    instance_initial: instance_initial || 'lead',
+    instance_followup: instance_followup || 'meta'
+  };
   
-  return config;
+  return result.rows[0];
 }
 
 /**
- * Get current WhatsApp config
+ * Get current WhatsApp configuration
  */
 export async function getWhatsAppConfig() {
   if (config) {
     return {
-      instance_name: config.instance_name,
       api_url: config.api_url,
-      is_configured: true
-      // Don't expose api_key
+      instance_initial: config.instance_initial || config.instance_name,
+      instance_followup: config.instance_followup || 'meta',
+      configured: true
     };
   }
-  
-  return { is_configured: false };
+  return { configured: false };
 }
 
 export default {
