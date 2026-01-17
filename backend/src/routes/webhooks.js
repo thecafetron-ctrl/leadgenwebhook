@@ -151,19 +151,23 @@ router.get('/logs/:id', async (req, res) => {
 
 /**
  * GET /api/webhooks/meta - Meta verification
+ * Note: Express may parse hub.mode as nested objects, so we check both formats
  */
 router.get('/meta', (req, res) => {
   const verifyToken = process.env.META_VERIFY_TOKEN || 'lead_pipeline_verify';
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
+  
+  // Handle both flat and nested query parameter formats
+  // Express might parse hub.mode as { hub: { mode: 'subscribe' } }
+  const mode = req.query['hub.mode'] || req.query.hub?.mode;
+  const token = req.query['hub.verify_token'] || req.query.hub?.verify_token;
+  const challenge = req.query['hub.challenge'] || req.query.hub?.challenge;
   
   console.log('Meta verification request:', { 
     mode, 
     token, 
     challenge, 
     expectedToken: verifyToken,
-    match: token === verifyToken
+    rawQuery: JSON.stringify(req.query)
   });
   
   // Accept verification if mode and token match
@@ -174,11 +178,7 @@ router.get('/meta', (req, res) => {
   }
   
   // Log why it failed
-  if (mode !== 'subscribe') {
-    console.log(`❌ Meta verification failed: mode is "${mode}" not "subscribe"`);
-  } else if (token !== verifyToken) {
-    console.log(`❌ Meta verification failed: token mismatch. Got "${token}", expected "${verifyToken}"`);
-  }
+  console.log(`❌ Meta verification failed: mode="${mode}", token="${token}", expected="${verifyToken}"`);
   
   res.status(403).send('Forbidden');
 });
