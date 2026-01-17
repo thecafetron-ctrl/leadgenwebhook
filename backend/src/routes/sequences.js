@@ -386,4 +386,43 @@ router.post('/process-queue', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/sequences/admin/seed-ebook
+ * Admin endpoint to seed the ebook_nurture sequence
+ */
+router.post('/admin/seed-ebook', async (req, res) => {
+  try {
+    const { query } = await import('../database/connection.js');
+    const { EBOOK_NURTURE_STEPS } = await import('../database/schema-sequences.js');
+    
+    // Check if sequence already exists
+    const existing = await query("SELECT id FROM sequences WHERE slug = 'ebook_nurture'");
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, message: 'Ebook sequence already exists', sequenceId: existing.rows[0].id });
+    }
+    
+    // Create the sequence
+    const result = await query(
+      `INSERT INTO sequences (name, slug, description, trigger_type)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      ['Ebook Nurture', 'ebook_nurture', 'Ebook delivery + 24 nurture emails over 100 days', 'ebook_signup']
+    );
+    const sequenceId = result.rows[0].id;
+    
+    // Add steps
+    for (const step of EBOOK_NURTURE_STEPS) {
+      await query(
+        `INSERT INTO sequence_steps (sequence_id, step_order, name, delay_value, delay_unit, channel)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [sequenceId, step.step_order, step.name, step.delay_value, step.delay_unit, step.channel]
+      );
+    }
+    
+    res.json({ success: true, message: 'Ebook sequence created', sequenceId, stepsCreated: EBOOK_NURTURE_STEPS.length });
+  } catch (error) {
+    console.error('Seed ebook sequence error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
