@@ -615,26 +615,32 @@ router.post('/meta/poll', async (req, res) => {
  * }
  */
 router.post('/ebook', async (req, res) => {
-  const clientIP = getClientIP(req);
+  let logId = null;
   
-  // Log the webhook
-  const logId = await WebhookLog.createWebhookLog({
-    source: 'ebook',
-    event_type: 'ebook_signup',
-    payload: req.body,
-    ip_address: clientIP,
-    headers: {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent']
-    }
-  });
-
   try {
+    const clientIP = getClientIP(req);
+    
+    // Log the webhook (wrapped in try-catch to not fail if logging fails)
+    try {
+      logId = await WebhookLog.createWebhookLog({
+        source: 'ebook',
+        event_type: 'ebook_signup',
+        payload: req.body,
+        ip_address: clientIP,
+        headers: {
+          'content-type': req.headers['content-type'],
+          'user-agent': req.headers['user-agent']
+        }
+      });
+    } catch (logError) {
+      console.error('Failed to create webhook log:', logError.message);
+    }
+
     const { email, first_name, last_name, phone, company, ebook_name } = req.body;
 
     // Validate required field
     if (!email) {
-      await WebhookLog.markWebhookFailed(logId, 'Email is required', 400);
+      if (logId) await WebhookLog.markWebhookFailed(logId, 'Email is required', 400).catch(() => {});
       return res.status(400).json({ success: false, error: 'Email is required' });
     }
 
@@ -671,21 +677,33 @@ router.post('/ebook', async (req, res) => {
       console.log(`📚 New ebook lead created: ${lead.id} (${email})`);
     }
 
-    // Enroll in ebook nurture sequence
-    const { enrollLead } = await import('../services/sequenceService.js');
-    await enrollLead(lead.id, 'ebook_nurture', 'ebook_webhook');
-    console.log(`📧 Enrolled ${lead.id} in ebook_nurture sequence`);
+    // Try to enroll in ebook nurture sequence (don't fail if sequence doesn't exist)
+    let enrolled = false;
+    try {
+      const { enrollLead } = await import('../services/sequenceService.js');
+      await enrollLead(lead.id, 'ebook_nurture', 'ebook_webhook');
+      enrolled = true;
+      console.log(`📧 Enrolled ${lead.id} in ebook_nurture sequence`);
+    } catch (enrollError) {
+      console.warn(`⚠️ Could not enroll in ebook_nurture sequence: ${enrollError.message}`);
+      // Don't fail the webhook - lead is still created
+    }
 
-    await WebhookLog.markWebhookProcessed(logId, lead.id, 200, 'Ebook lead processed');
+    if (logId) {
+      await WebhookLog.markWebhookProcessed(logId, lead.id, 200, 'Ebook lead processed').catch(() => {});
+    }
     
     res.status(200).json({ 
       success: true, 
       message: 'Ebook signup processed',
-      leadId: lead.id
+      leadId: lead.id,
+      enrolled
     });
   } catch (error) {
     console.error('Ebook webhook error:', error);
-    await WebhookLog.markWebhookFailed(logId, error.message, 500);
+    if (logId) {
+      await WebhookLog.markWebhookFailed(logId, error.message, 500).catch(() => {});
+    }
     res.status(500).json({ success: false, error: 'Failed to process ebook signup' });
   }
 });
