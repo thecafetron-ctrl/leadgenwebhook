@@ -13,8 +13,18 @@
  */
 
 import { query } from '../database/connection.js';
+import OpenAI from 'openai';
 
 let config = null;
+let openai = null;
+
+// Initialize OpenAI if API key is available
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+}
 
 /**
  * Initialize WhatsApp service
@@ -80,6 +90,62 @@ function formatPhoneNumber(phone) {
 }
 
 /**
+ * Use AI to infer the correct country code for a phone number
+ * Based on lead context (name, company, form data)
+ */
+async function inferCountryCode(phone, leadContext = {}) {
+  const ai = getOpenAI();
+  if (!ai) {
+    console.log('⚠️ OpenAI not configured, cannot infer country code');
+    return null;
+  }
+
+  try {
+    const prompt = `You are a phone number formatting expert. Given a phone number and context about the person, determine the most likely country code.
+
+Phone number: ${phone}
+Context:
+- Name: ${leadContext.name || 'Unknown'}
+- Company: ${leadContext.company || 'Unknown'}
+- Email domain: ${leadContext.email ? leadContext.email.split('@')[1] : 'Unknown'}
+- Form data: ${JSON.stringify(leadContext.custom_fields || {})}
+
+Rules:
+1. Middle Eastern names/Arabic text → likely UAE (+971), Oman (+968), Qatar (+974), Saudi (+966), Bahrain (+973), Kuwait (+965)
+2. Indian names → likely India (+91)
+3. Pakistani names → likely Pakistan (+92)
+4. 8-digit numbers starting with 7 or 9 → likely Oman (+968)
+5. 8-digit numbers starting with 3, 5, 6 → likely Qatar (+974)
+6. 10-digit numbers → likely US (+1) or India (+91)
+7. Look at email domain for country hints (.ae, .qa, .om, .in, .pk, etc.)
+
+Return ONLY the full phone number with country code (digits only, no + symbol). 
+Example: If the number is 77426398 and context suggests Oman, return: 96877426398
+
+Phone number with country code:`;
+
+    const response = await ai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 50,
+      temperature: 0
+    });
+
+    const inferredNumber = response.choices[0].message.content.trim().replace(/[^\d]/g, '');
+    
+    if (inferredNumber && inferredNumber.length > phone.replace(/[^\d]/g, '').length) {
+      console.log(`🤖 AI inferred phone: ${phone} → ${inferredNumber}`);
+      return inferredNumber;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('AI phone inference error:', error.message);
+    return null;
+  }
+}
+
+/**
  * Get the appropriate instance and API key based on message type
  * @param isInitial - true for welcome/confirmation messages, false for follow-ups
  * @returns { instance, apiKey }
@@ -102,13 +168,66 @@ function getInstanceConfig(isInitial = false) {
 }
 
 /**
+ * Internal function to send WhatsApp message
+ */
+async function sendWhatsAppInternal(formattedPhone, message, mediaUrl, useInitialInstance) {
+  const instanceConfig = getInstanceConfig(useInitialInstance);
+  const { instance: instanceName, apiKey } = instanceConfig;
+  const endpoint = `${config.api_url}/message/sendText/${instanceName}`;
+  
+  console.log(`📱 Sending WhatsApp via "${instanceName}" (${useInitialInstance ? 'Haarith' : 'Meta +44'}) to ${formattedPhone}`);
+  
+  const payload = {
+    number: formattedPhone,
+    text: message
+  };
+  
+  // If there's media, use different endpoint
+  if (mediaUrl) {
+    const mediaEndpoint = `${config.api_url}/message/sendMedia/${instanceName}`;
+    payload.mediatype = 'image';
+    payload.media = mediaUrl;
+    payload.caption = message;
+  }
+  
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': apiKey
+    },
+    body: JSON.stringify(payload)
+  });
+  
+  const data = await response.json();
+  
+  if (response.ok && data.key?.id) {
+    console.log(`✅ WhatsApp sent to ${formattedPhone} via ${instanceName}`);
+    return {
+      success: true,
+      messageId: data.key.id,
+      status: data.status,
+      instance: instanceName
+    };
+  } else {
+    return {
+      success: false,
+      error: data.message || 'Failed to send WhatsApp',
+      details: data
+    };
+  }
+}
+
+/**
  * Send WhatsApp message via Evolution API
+ * With AI-powered phone number correction on failure
+ * 
  * @param phone - Phone number to send to
  * @param message - Message text
  * @param isInitial - If true, sends from Haarith's number; if false, sends from Meta number
- * @param stepOrder - Step number (1 = initial, >1 = follow-up)
+ * @param leadContext - Optional lead data for AI phone inference
  */
-export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial = false, stepOrder = 1 }) {
+export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial = false, stepOrder = 1, leadContext = null }) {
   const formattedPhone = formatPhoneNumber(phone);
   
   if (!formattedPhone) {
@@ -116,8 +235,6 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial 
   }
   
   // ONLY use isInitial flag - this is set correctly by the caller
-  // isInitial=true ONLY for new_lead sequence step 1
-  // Everything else (confirmations, reminders, value emails) uses Meta
   const useInitialInstance = isInitial;
   
   // If not configured, log and return mock success
@@ -131,52 +248,33 @@ export async function sendWhatsApp({ phone, message, mediaUrl = null, isInitial 
   }
   
   try {
-    const instanceConfig = getInstanceConfig(useInitialInstance);
-    const { instance: instanceName, apiKey } = instanceConfig;
-    const endpoint = `${config.api_url}/message/sendText/${instanceName}`;
+    // First attempt with the formatted phone
+    let result = await sendWhatsAppInternal(formattedPhone, message, mediaUrl, useInitialInstance);
     
-    console.log(`📱 Sending WhatsApp via "${instanceName}" (${useInitialInstance ? 'Haarith' : 'Meta +44'})`);
-    
-    const payload = {
-      number: formattedPhone,
-      text: message
-    };
-    
-    // If there's media, use different endpoint
-    if (mediaUrl) {
-      const mediaEndpoint = `${config.api_url}/message/sendMedia/${instanceName}`;
-      payload.mediatype = 'image';
-      payload.media = mediaUrl;
-      payload.caption = message;
+    // If failed and we have lead context, try AI-powered phone correction
+    if (!result.success && leadContext) {
+      console.log(`⚠️ WhatsApp failed for ${formattedPhone}, attempting AI phone correction...`);
+      
+      const correctedPhone = await inferCountryCode(phone, leadContext);
+      
+      if (correctedPhone && correctedPhone !== formattedPhone) {
+        console.log(`🔄 Retrying with AI-corrected number: ${correctedPhone}`);
+        result = await sendWhatsAppInternal(correctedPhone, message, mediaUrl, useInitialInstance);
+        
+        if (result.success) {
+          result.aiCorrected = true;
+          result.originalPhone = formattedPhone;
+          result.correctedPhone = correctedPhone;
+          console.log(`✅ AI phone correction successful: ${formattedPhone} → ${correctedPhone}`);
+        }
+      }
     }
     
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': apiKey
-      },
-      body: JSON.stringify(payload)
-    });
-    
-    const data = await response.json();
-    
-    if (response.ok && data.key?.id) {
-      console.log(`✅ WhatsApp sent to ${formattedPhone} via ${instanceName}`);
-      return {
-        success: true,
-        messageId: data.key.id,
-        status: data.status,
-        instance: instanceName
-      };
-    } else {
-      console.error(`❌ WhatsApp failed via ${instanceName}:`, data);
-      return {
-        success: false,
-        error: data.message || 'Failed to send WhatsApp',
-        details: data
-      };
+    if (!result.success) {
+      console.error(`❌ WhatsApp failed:`, result.error);
     }
+    
+    return result;
   } catch (error) {
     console.error('WhatsApp API error:', error);
     return {

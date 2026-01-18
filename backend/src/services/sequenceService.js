@@ -777,7 +777,13 @@ export async function manualSendStep(leadId, stepId) {
       phone: lead.phone, 
       message: content.whatsapp,
       stepOrder: step.step_order,
-      isInitial: isFirstWelcome
+      isInitial: isFirstWelcome,
+      leadContext: {
+        name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
+        company: lead.company,
+        email: lead.email,
+        custom_fields: lead.custom_fields
+      }
     });
   }
   
@@ -883,7 +889,7 @@ export async function processMessageQueue() {
            ls.lead_id, ls.status as sequence_status,
            ss.step_order, ss.email_subject, ss.email_body, ss.whatsapp_message,
            s.slug as sequence_slug,
-           l.first_name, l.last_name, l.email, l.phone
+           l.first_name, l.last_name, l.email, l.phone, l.company, l.custom_fields
     FROM message_queue mq
     JOIN lead_sequences ls ON mq.lead_sequence_id = ls.id
     JOIN sequence_steps ss ON mq.sequence_step_id = ss.id
@@ -1019,13 +1025,19 @@ async function processMessage(msg) {
       phone: msg.phone,
       message: content.whatsapp,
       stepOrder: stepOrder,
-      isInitial: isFirstWelcome  // Only true for new_lead step 1
+      isInitial: isFirstWelcome,  // Only true for new_lead step 1
+      leadContext: {
+        name: `${msg.first_name || ''} ${msg.last_name || ''}`.trim(),
+        company: msg.company,
+        email: msg.email,
+        custom_fields: msg.custom_fields
+      }
     });
     externalId = result.messageId;
     if (!result.success) {
       status = 'failed';
     }
-    console.log(`📱 WhatsApp sent via ${isFirstWelcome ? 'Haarith (lead)' : 'Meta (+44)'} instance`);
+    console.log(`📱 WhatsApp sent via ${isFirstWelcome ? 'Haarith (lead)' : 'Meta (+44)'} instance${result.aiCorrected ? ' (AI corrected phone)' : ''}`);
   }
   
   // Build metadata object
