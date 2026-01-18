@@ -7,6 +7,7 @@
  */
 
 export const CALENDAR_LINK = 'https://cal.com/structure-1rtlm8/ai-qualification-call';
+export const EBOOK_LINK = 'https://structurelogistics.com/90-day-freight-scaling-playbook.pdf';
 
 // ============================================
 // OPERATIONAL EMAILS
@@ -1093,8 +1094,6 @@ We look forward to seeing you on the call.`
 // EBOOK NURTURE SEQUENCE
 // Ebook delivery → 6hr follow-up → 35 days of value emails
 // ============================================
-
-export const EBOOK_LINK = 'https://structurelogistics.com/90-day-freight-scaling-playbook.pdf';
 
 export const EBOOK_EMAILS = {
   // Email 1: Immediate - Ebook Delivery
