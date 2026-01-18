@@ -182,6 +182,8 @@ If you're shipping regularly and still relying on manual processes across quotin
 
 If you want to assess where automation makes sense for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -206,6 +208,8 @@ The irony is that fixing these problems isn't hard. It just requires being hones
 
 If you want to identify where inefficiency is hiding in your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -226,6 +230,8 @@ It's not about working harder. It's about removing the constraint that made work
 
 If you want to understand how automation could change your unit economics, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -245,6 +251,8 @@ Once that work is automated, the people who were doing it are freed up to do som
 Teams don't shrink. They shift. And the business becomes more resilient because it's not dependent on everyone doing manual tasks correctly every time.
 
 If you want to explore how automation could free up your team, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -272,6 +280,8 @@ That's where automation actually matters.
 
 If you want to identify where throughput is limiting your growth, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -290,6 +300,8 @@ Automating the quote process doesn't just save time. It captures revenue that wa
 
 If you want to understand how automation could speed up your quoting, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -307,6 +319,8 @@ If your team is copying and pasting tracking numbers, writing update emails manu
 Automated tracking updates don't just save time. They reduce customer anxiety, cut down on inbound support requests, and free your team to focus on exceptions that actually require attention.
 
 If you want to see how automated tracking could work for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -330,6 +344,8 @@ Automating the invoicing process — generating invoices from job data, sending 
 
 If you want to explore how invoicing automation could improve your cash flow, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -347,6 +363,8 @@ But most of that data already exists somewhere in the system. The shipment detai
 When automation pulls from that data and formats it correctly, compliance becomes a background process instead of a blocking one.
 
 If you want to understand how automation fits into your customs workflow, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -368,6 +386,8 @@ From there, you can build. But if your team is still acting as the bridge betwee
 
 If you want to identify the best starting point for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -387,6 +407,8 @@ When those processes are automated, the cost per shipment drops. Suddenly, margi
 That's the real unlock.
 
 If you want to understand how automation could improve your margins, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -408,6 +430,8 @@ Consistency is what makes businesses scalable. Perfection comes later.
 
 If you want to explore how automation could bring consistency to your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -425,6 +449,8 @@ But when someone who could be managing relationships, solving problems, or growi
 Automation doesn't just save time. It lets talent do what they're actually good at.
 
 If you want to free up your best people for higher-value work, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -448,6 +474,8 @@ That changes how you manage.
 
 If you want to understand how automation could improve visibility in your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -467,6 +495,8 @@ Automation flips that. Routine work gets handled in the background. The team foc
 That's when productivity actually improves.
 
 If you want to explore how automation could shift your team from busy to productive, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -488,6 +518,8 @@ Automation captures processes in systems, not people. So the business works even
 
 If you want to reduce your dependency on key individuals, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -507,6 +539,8 @@ When you're making the same kinds of mistakes repeatedly, the cumulative cost is
 Automation eliminates categories of mistakes. Not by making people more careful, but by removing the opportunity for error in the first place.
 
 If you want to identify where mistakes are costing you, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -528,6 +562,8 @@ If you're planning to grow, build the infrastructure that supports it. Not after
 
 If you want to prepare your operation for scale, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -546,6 +582,8 @@ Improving customer experience in logistics isn't about adding more touchpoints o
 
 If you want to improve customer experience through better operations, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -563,6 +601,8 @@ That doesn't mean building software from scratch. But it does mean integrating t
 The companies that figure this out tend to win. The ones that don't get left behind.
 
 If you want to understand how technology could give you a competitive edge, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -583,6 +623,8 @@ When routine work is automated, your team handles more with less. You don't need
 That changes the economics. Instead of adding headcount to grow, you grow and then decide where people add the most value.
 
 If you want to explore how automation could change your headcount equation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -606,6 +648,8 @@ That's not the future. That's what's possible right now.
 
 If you want to see what automation could look like for your operation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -626,6 +670,8 @@ You don't have to be first. But waiting too long has consequences.
 
 If you want to assess whether now is the right time for automation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -643,6 +689,8 @@ If you're doing a handful of shipments a month, manual processes are probably fi
 But once you're moving real volume — where manual work becomes a bottleneck and errors have real consequences — that's when automation delivers returns.
 
 If you want to assess whether automation makes sense at your current scale, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -664,6 +712,8 @@ You're still in charge. You're just not doing everything yourself.
 
 If you want to understand how automation could give you more control, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -684,6 +734,8 @@ At some point, what used to work becomes what holds you back. That's usually whe
 
 If you want to evaluate whether your current processes are helping or holding you back, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -703,6 +755,8 @@ If the answers are "a lot," "too often," and "not fast enough," automation is pr
 If everything's running smoothly and efficiently without it, it might not be the priority yet.
 
 If you want help evaluating whether automation is right for your business, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -726,6 +780,8 @@ That's why speed matters even when things are going fine. Fine doesn't compound.
 
 If you want to understand how automation could make your operation faster, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -743,6 +799,8 @@ That's the tipping point. The moment where what got you here won't get you furth
 Recognizing it early gives you time to fix it before it becomes a crisis. Waiting until it's obvious usually means you're already behind.
 
 If you want to assess whether you're approaching that tipping point, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -764,6 +822,8 @@ Automation, at its core, is about making systems work together. When they do, th
 
 If you want to explore how your systems could be better connected, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -781,6 +841,8 @@ Automation projects fail when they get stuck in planning. When teams debate endl
 Execution matters. Shipping something imperfect and iterating beats planning something perfect and never launching.
 
 If you want to move from strategy to implementation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -801,6 +863,8 @@ No fanfare. No special effort. Just consistent execution that happens in the bac
 That's the goal — not a complex system to admire, but one that works so well you forget it's there.
 
 If you want to explore what invisible automation could look like for you, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
@@ -824,6 +888,8 @@ It's not about being bigger. It's about being better at handling growth.
 
 If you want to build the foundation for sustainable scale, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -844,6 +910,8 @@ Investing in process — and automating it — is investing in the product itsel
 
 If you want to improve your processes through automation, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
 
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
+
 Best regards,
 STRUCTURE Team`
   },
@@ -861,6 +929,8 @@ But not having expertise doesn't mean not moving forward. It means partnering wi
 That's what we do at STRUCTURE. We bring the automation experience so you don't have to build it from scratch.
 
 If you're ready to explore what that looks like, you can book a consultation <b><a href="${CALENDAR_LINK}">here</a></b>.
+
+You can also download our free 90-Day Freight Scaling Playbook <b><a href="${EBOOK_LINK}">here</a></b>.
 
 Best regards,
 STRUCTURE Team`
