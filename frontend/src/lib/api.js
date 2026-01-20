@@ -106,6 +106,13 @@ export const leadsApi = {
    */
   bulkDelete: async (ids) => {
     return api.post('/leads/bulk/delete', { ids });
+  },
+
+  /**
+   * Mark lead as attended (prevents no-show emails)
+   */
+  markAttended: async (id) => {
+    return api.post(`/leads/${id}/attended`);
   }
 };
 

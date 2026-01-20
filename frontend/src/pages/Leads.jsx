@@ -35,7 +35,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { leadsApi, sequencesApi } from '../lib/api';
@@ -157,6 +158,18 @@ function Leads() {
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to cancel workflow');
+    }
+  });
+
+  // Mark as attended mutation
+  const attendedMutation = useMutation({
+    mutationFn: (leadId) => leadsApi.markAttended(leadId),
+    onSuccess: (data) => {
+      toast.success(`${data.message || 'Lead marked as attended!'}`);
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to mark as attended');
     }
   });
 
@@ -584,6 +597,23 @@ function Leads() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-end gap-2">
+                        {/* Mark as Attended - only show if has booking */}
+                        {lead.custom_fields?.booking_time && (
+                          lead.meeting_status === 'attended' ? (
+                            <span className="p-2 rounded-lg text-success-400" title="Attended">
+                              <UserCheck className="w-4 h-4" />
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => attendedMutation.mutate(lead.id)}
+                              disabled={attendedMutation.isLoading}
+                              className="p-2 rounded-lg text-dark-400 hover:text-success-400 hover:bg-success-500/10 transition-colors"
+                              title="Mark as Attended (prevents no-show emails)"
+                            >
+                              <UserCheck className="w-4 h-4" />
+                            </button>
+                          )
+                        )}
                         <button
                           onClick={() => openModal('viewLead', lead)}
                           className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
