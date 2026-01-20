@@ -80,12 +80,12 @@ router.get('/booked', async (req, res) => {
       lead.custom_fields?.booking_time || lead.custom_fields?.calcom_booking_id
     ).map(lead => ({
       id: lead.id,
-      name: `${lead.first_name} ${lead.last_name}`,
+      name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
       email: lead.email,
       phone: lead.phone,
       company: lead.company,
       booking_time: lead.custom_fields?.booking_time,
-      meeting_status: lead.meeting_status,
+      meeting_status: lead.meeting_status || 'pending', // Show meeting status
       status: lead.status
     }));
     
