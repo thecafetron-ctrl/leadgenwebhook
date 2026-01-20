@@ -64,6 +64,47 @@ router.get('/stats', async (req, res) => {
 });
 
 /**
+ * GET /api/leads/booked
+ * Get leads with booked meetings (to mark as attended/no-show)
+ */
+router.get('/booked', async (req, res) => {
+  try {
+    const result = await Lead.getLeads({
+      limit: 100,
+      sortBy: 'updated_at',
+      sortOrder: 'desc'
+    });
+    
+    // Filter to leads with booking info
+    const bookedLeads = result.leads.filter(lead => 
+      lead.custom_fields?.booking_time || lead.custom_fields?.calcom_booking_id
+    ).map(lead => ({
+      id: lead.id,
+      name: `${lead.first_name} ${lead.last_name}`,
+      email: lead.email,
+      phone: lead.phone,
+      company: lead.company,
+      booking_time: lead.custom_fields?.booking_time,
+      meeting_status: lead.meeting_status,
+      status: lead.status
+    }));
+    
+    res.json({
+      success: true,
+      data: bookedLeads,
+      count: bookedLeads.length
+    });
+  } catch (error) {
+    console.error('Error fetching booked leads:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch booked leads',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/leads/recent
  * Get recent leads
  */
@@ -172,6 +213,43 @@ router.put('/:id', validateBody(leadSchema.partial()), async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update lead',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/leads/:id/attended
+ * Mark a lead as attended (prevents no-show emails)
+ */
+router.post('/:id/attended', async (req, res) => {
+  try {
+    const lead = await Lead.getLeadById(req.params.id);
+    
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found'
+      });
+    }
+    
+    // Update meeting_status to attended
+    const updated = await Lead.updateLead(req.params.id, {
+      meeting_status: 'attended'
+    });
+    
+    console.log(`✅ Lead ${lead.first_name} ${lead.last_name} marked as ATTENDED`);
+    
+    res.json({
+      success: true,
+      data: updated,
+      message: `${lead.first_name} ${lead.last_name} marked as attended - no-show emails will NOT be sent`
+    });
+  } catch (error) {
+    console.error('Error marking lead as attended:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark lead as attended',
       message: error.message
     });
   }

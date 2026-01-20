@@ -485,6 +485,15 @@ export async function onMeetingBooked(leadId, meetingTime) {
  * When a lead is a no-show
  */
 export async function onNoShow(leadId) {
+  // FIRST: Check if lead is marked as attended
+  const leadResult = await query('SELECT first_name, last_name, meeting_status FROM leads WHERE id = $1', [leadId]);
+  const lead = leadResult.rows[0];
+  
+  if (lead?.meeting_status === 'attended') {
+    console.log(`✅ Lead ${lead.first_name} ${lead.last_name} is marked as ATTENDED - skipping no-show sequence`);
+    return; // Don't send no-show emails to someone who attended!
+  }
+  
   // Cancel meeting sequence
   await cancelLeadSequence(leadId, 'meeting_booked', 'No show');
   
