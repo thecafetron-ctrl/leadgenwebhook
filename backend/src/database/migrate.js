@@ -92,6 +92,14 @@ export async function migrate() {
     await query(INDEXES);
     console.log('✅ Core indexes created');
     
+    // Add meeting_status column if it doesn't exist
+    try {
+      await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS meeting_status VARCHAR(50)`);
+      console.log('✅ Meeting status column ready');
+    } catch (e) {
+      // Column might already exist
+    }
+    
     // Create sequence automation tables
     await query(SEQUENCE_TABLES);
     console.log('✅ Sequence tables ready');
