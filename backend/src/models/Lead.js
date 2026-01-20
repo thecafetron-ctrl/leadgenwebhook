@@ -240,7 +240,8 @@ export async function updateLead(id, updates) {
   const allowedFields = [
     'first_name', 'last_name', 'email', 'phone', 'company', 'job_title',
     'status', 'score', 'priority', 'tags', 'custom_fields', 'notes', 'assigned_to',
-    'email_consent', 'sms_consent', 'whatsapp_consent', 'gdpr_consent'
+    'email_consent', 'sms_consent', 'whatsapp_consent', 'gdpr_consent',
+    'meeting_status'  // For tracking attended/no-show
   ];
 
   const setClauses = [];
