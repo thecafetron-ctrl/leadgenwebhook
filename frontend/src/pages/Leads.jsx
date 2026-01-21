@@ -413,9 +413,9 @@ function Leads() {
                     onChange={(e) => setLeadFilters({ priority: e.target.value })}
                     className="input-field"
                   >
-                    <option value="">All Priorities</option>
+                    <option value="" className="bg-dark-800 text-white">All Priorities</option>
                     {PRIORITIES.map(priority => (
-                      <option key={priority} value={priority} className="capitalize">
+                      <option key={priority} value={priority} className="bg-dark-800 text-white capitalize">
                         {priority}
                       </option>
                     ))}

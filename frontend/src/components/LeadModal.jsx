@@ -283,7 +283,7 @@ function LeadModal({ isOpen, lead, onClose }) {
                         disabled={isEditing}
                       >
                         {SOURCES.map(s => (
-                          <option key={s} value={s} className="capitalize">
+                          <option key={s} value={s} className="bg-dark-800 text-white capitalize">
                             {s.replace('_', ' ')}
                           </option>
                         ))}
@@ -300,7 +300,7 @@ function LeadModal({ isOpen, lead, onClose }) {
                         className="input-field"
                       >
                         {STATUSES.map(s => (
-                          <option key={s} value={s} className="capitalize">
+                          <option key={s} value={s} className="bg-dark-800 text-white capitalize">
                             {s}
                           </option>
                         ))}
@@ -317,7 +317,7 @@ function LeadModal({ isOpen, lead, onClose }) {
                         className="input-field"
                       >
                         {PRIORITIES.map(p => (
-                          <option key={p} value={p} className="capitalize">
+                          <option key={p} value={p} className="bg-dark-800 text-white capitalize">
                             {p}
                           </option>
                         ))}
