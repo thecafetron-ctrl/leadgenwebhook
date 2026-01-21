@@ -36,7 +36,10 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  UserCheck
+  UserCheck,
+  Brain,
+  Send,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { leadsApi, sequencesApi } from '../lib/api';
@@ -173,6 +176,33 @@ function Leads() {
     }
   });
 
+  // AI Score mutation
+  const scoreMutation = useMutation({
+    mutationFn: (leadId) => leadsApi.scoreLead(leadId),
+    onSuccess: (data) => {
+      toast.success(`AI Score: ${data.data.score}/100`);
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to score lead');
+    }
+  });
+
+  // Score all leads mutation
+  const scoreAllMutation = useMutation({
+    mutationFn: () => leadsApi.scoreAllLeads(),
+    onSuccess: (data) => {
+      toast.success(`Scored ${data.data.length} leads with AI!`);
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to score leads');
+    }
+  });
+
+  // Manual send state
+  const [showManualSend, setShowManualSend] = useState(false);
+
   // State for workflow modal
   const [workflowModal, setWorkflowModal] = useState({ open: false, lead: null, status: null });
 
@@ -238,6 +268,29 @@ function Leads() {
         </div>
         
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => scoreAllMutation.mutate()}
+            disabled={scoreAllMutation.isLoading}
+            className="px-4 py-2 rounded-xl bg-accent-500/20 border border-accent-500/50 text-accent-300 hover:bg-accent-500/30 transition-all flex items-center gap-2"
+            title="Score all leads with AI"
+          >
+            <Sparkles className="w-4 h-4" />
+            {scoreAllMutation.isLoading ? 'Scoring...' : 'AI Score'}
+          </button>
+          <button
+            onClick={() => setShowManualSend(true)}
+            disabled={selectedLeads.length === 0}
+            className={cn(
+              "px-4 py-2 rounded-xl border transition-all flex items-center gap-2",
+              selectedLeads.length > 0
+                ? "bg-success-500/20 border-success-500/50 text-success-300 hover:bg-success-500/30"
+                : "bg-dark-800/50 border-dark-600 text-dark-500 cursor-not-allowed"
+            )}
+            title={selectedLeads.length > 0 ? `Send to ${selectedLeads.length} leads` : 'Select leads first'}
+          >
+            <Send className="w-4 h-4" />
+            Send ({selectedLeads.length})
+          </button>
           <button
             onClick={handleExport}
             className="px-4 py-2 rounded-xl bg-dark-800/50 border border-dark-600 text-dark-300 hover:text-white hover:border-primary-500 transition-all flex items-center gap-2"
@@ -487,6 +540,16 @@ function Leads() {
                 </th>
                 <th 
                   className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('score')}
+                >
+                  <div className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Score
+                    {sortBy === 'score' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
                   onClick={() => handleSort('created_at')}
                 >
                   <div className="flex items-center gap-1">
@@ -513,6 +576,7 @@ function Leads() {
                     <td className="p-4"><div className="skeleton w-40 h-8 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-12 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-24 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-24 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
@@ -520,7 +584,7 @@ function Leads() {
                 ))
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="p-12 text-center text-dark-400">
+                  <td colSpan="9" className="p-12 text-center text-dark-400">
                     <div className="flex flex-col items-center">
                       <Search className="w-12 h-12 mb-4 opacity-50" />
                       <p className="text-lg font-medium">No leads found</p>
@@ -582,6 +646,13 @@ function Leads() {
                       <span className={cn("badge", getStatusColor(lead.status))}>
                         {lead.status}
                       </span>
+                    </td>
+                    <td className="p-4">
+                      <ScoreCell 
+                        score={lead.score} 
+                        onScore={() => scoreMutation.mutate(lead.id)}
+                        isLoading={scoreMutation.isLoading}
+                      />
                     </td>
                     <td className="p-4">
                       <div className="text-sm">
@@ -760,6 +831,14 @@ function Leads() {
           setWorkflowModal({ open: false, lead: null, status: null });
         }}
         isLoading={enrollMutation.isLoading || cancelMutation.isLoading}
+      />
+
+      {/* Manual Send Modal */}
+      <ManualSendModal
+        isOpen={showManualSend}
+        selectedLeads={selectedLeads}
+        leads={leads}
+        onClose={() => setShowManualSend(false)}
       />
     </div>
   );
@@ -1042,6 +1121,270 @@ function WorkflowModal({ isOpen, lead, initialStatus, onClose, onEnroll, onCance
             </div>
           </div>
         )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/**
+ * ScoreCell - Shows AI priority score with color coding
+ */
+function ScoreCell({ score, onScore, isLoading }) {
+  if (score === null || score === undefined || score === 0) {
+    return (
+      <button
+        onClick={onScore}
+        disabled={isLoading}
+        className="px-2 py-1 rounded-lg bg-dark-800/50 text-dark-400 hover:text-accent-400 hover:bg-accent-500/10 transition-colors text-xs flex items-center gap-1"
+      >
+        <Sparkles className="w-3 h-3" />
+        Score
+      </button>
+    );
+  }
+
+  // Color based on score
+  const getScoreColor = (s) => {
+    if (s >= 80) return 'text-success-400 bg-success-500/20';
+    if (s >= 60) return 'text-primary-400 bg-primary-500/20';
+    if (s >= 40) return 'text-warning-400 bg-warning-500/20';
+    return 'text-dark-400 bg-dark-700/50';
+  };
+
+  return (
+    <div className={cn("px-2 py-1 rounded-lg text-sm font-medium", getScoreColor(score))}>
+      {score}
+    </div>
+  );
+}
+
+/**
+ * ManualSendModal - Send messages to selected leads
+ */
+function ManualSendModal({ isOpen, selectedLeads, leads, onClose }) {
+  const queryClient = useQueryClient();
+  const [channel, setChannel] = useState('email');
+  const [emailAccount, setEmailAccount] = useState('haarith');
+  const [whatsappInstance, setWhatsappInstance] = useState('meta');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+
+  const selectedLeadData = leads.filter(l => selectedLeads.includes(l.id));
+
+  const sendMutation = useMutation({
+    mutationFn: (data) => leadsApi.manualSend(data),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      queryClient.invalidateQueries(['leads']);
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to send messages');
+    }
+  });
+
+  const handleSend = () => {
+    if (!message.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+
+    sendMutation.mutate({
+      leadIds: selectedLeads,
+      channel,
+      emailAccount,
+      whatsappInstance,
+      subject,
+      message
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Send className="w-5 h-5 text-primary-400" />
+              Manual Send
+            </h3>
+            <p className="text-sm text-dark-400 mt-1">
+              Send to {selectedLeads.length} selected lead{selectedLeads.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Selected Leads Summary */}
+        <div className="mb-6 p-3 rounded-xl bg-dark-800/50 border border-dark-700 max-h-32 overflow-y-auto">
+          <p className="text-xs text-dark-400 mb-2">Recipients:</p>
+          <div className="flex flex-wrap gap-2">
+            {selectedLeadData.map(lead => (
+              <span key={lead.id} className="px-2 py-1 rounded bg-dark-700 text-xs text-dark-300">
+                {lead.first_name} {lead.last_name}
+                {lead.score > 0 && <span className="ml-1 text-accent-400">({lead.score})</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Channel Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-dark-300 mb-2">Channel</label>
+          <div className="flex gap-2">
+            {['email', 'whatsapp', 'both'].map(ch => (
+              <button
+                key={ch}
+                onClick={() => setChannel(ch)}
+                className={cn(
+                  "px-4 py-2 rounded-lg capitalize transition-all",
+                  channel === ch
+                    ? "bg-primary-500 text-white"
+                    : "bg-dark-800/50 text-dark-300 hover:text-white"
+                )}
+              >
+                {ch === 'both' ? 'Both' : ch}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Email Account Selection */}
+        {(channel === 'email' || channel === 'both') && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-dark-300 mb-2">Send Email From</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEmailAccount('haarith')}
+                className={cn(
+                  "px-4 py-2 rounded-lg transition-all flex-1",
+                  emailAccount === 'haarith'
+                    ? "bg-primary-500 text-white"
+                    : "bg-dark-800/50 text-dark-300 hover:text-white"
+                )}
+              >
+                haarith@structurelogistics.com
+              </button>
+              <button
+                onClick={() => setEmailAccount('sales')}
+                className={cn(
+                  "px-4 py-2 rounded-lg transition-all flex-1",
+                  emailAccount === 'sales'
+                    ? "bg-primary-500 text-white"
+                    : "bg-dark-800/50 text-dark-300 hover:text-white"
+                )}
+              >
+                sales@structurelogistics.com
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp Instance Selection */}
+        {(channel === 'whatsapp' || channel === 'both') && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-dark-300 mb-2">Send WhatsApp From</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setWhatsappInstance('haarith')}
+                className={cn(
+                  "px-4 py-2 rounded-lg transition-all flex-1",
+                  whatsappInstance === 'haarith'
+                    ? "bg-success-500 text-white"
+                    : "bg-dark-800/50 text-dark-300 hover:text-white"
+                )}
+              >
+                Haarith (+971)
+              </button>
+              <button
+                onClick={() => setWhatsappInstance('meta')}
+                className={cn(
+                  "px-4 py-2 rounded-lg transition-all flex-1",
+                  whatsappInstance === 'meta'
+                    ? "bg-success-500 text-white"
+                    : "bg-dark-800/50 text-dark-300 hover:text-white"
+                )}
+              >
+                Meta (+44)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Subject (for email) */}
+        {(channel === 'email' || channel === 'both') && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-dark-300 mb-2">Subject</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Email subject (use {{first_name}} for personalization)"
+              className="input-field"
+            />
+          </div>
+        )}
+
+        {/* Message */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-dark-300 mb-2">Message</label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Your message (use {{first_name}}, {{company}} for personalization)"
+            rows={6}
+            className="input-field resize-none"
+          />
+          <p className="text-xs text-dark-500 mt-1">
+            Variables: {'{{first_name}}'}, {'{{last_name}}'}, {'{{company}}'}, {'{{name}}'}
+          </p>
+        </div>
+
+        {/* Send Button */}
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-dark-800/50 text-dark-300 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sendMutation.isLoading || !message.trim()}
+            className="px-6 py-2 rounded-xl bg-primary-500 text-white hover:bg-primary-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            {sendMutation.isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Send to {selectedLeads.length} leads
+              </>
+            )}
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );

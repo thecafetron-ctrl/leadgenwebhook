@@ -8,6 +8,10 @@
 import { Router } from 'express';
 import Lead from '../models/Lead.js';
 import { leadSchema, leadQuerySchema, validateBody, validateQuery } from '../middleware/validation.js';
+import { scoreLead, scoreAllLeads, rescoreLead } from '../services/aiPriorityService.js';
+import { sendWhatsApp } from '../services/whatsappService.js';
+import { sendEmail } from '../services/emailService.js';
+import { query } from '../database/connection.js';
 
 const router = Router();
 
@@ -250,6 +254,207 @@ router.post('/:id/attended', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to mark lead as attended',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/leads/:id/score
+ * Calculate AI priority score for a lead
+ */
+router.post('/:id/score', async (req, res) => {
+  try {
+    const result = await scoreLead(req.params.id);
+    res.json({
+      success: true,
+      data: result,
+      message: `Lead scored: ${result.score}/100`
+    });
+  } catch (error) {
+    console.error('Error scoring lead:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to score lead',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/leads/score-all
+ * Score all unscored leads with AI
+ */
+router.post('/score-all', async (req, res) => {
+  try {
+    const results = await scoreAllLeads();
+    res.json({
+      success: true,
+      data: results,
+      message: `Scored ${results.length} leads`
+    });
+  } catch (error) {
+    console.error('Error scoring leads:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to score leads',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/leads/manual-send
+ * Send manual message to selected leads
+ */
+router.post('/manual-send', async (req, res) => {
+  try {
+    const { leadIds, channel, emailAccount, whatsappInstance, subject, message } = req.body;
+
+    if (!leadIds || leadIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No leads selected' });
+    }
+
+    if (!channel || !message) {
+      return res.status(400).json({ success: false, error: 'Channel and message are required' });
+    }
+
+    const results = [];
+    
+    for (const leadId of leadIds) {
+      const leadResult = await query('SELECT * FROM leads WHERE id = $1', [leadId]);
+      const lead = leadResult.rows[0];
+      
+      if (!lead) {
+        results.push({ leadId, success: false, error: 'Lead not found' });
+        continue;
+      }
+
+      try {
+        if (channel === 'email' && lead.email) {
+          // Personalize message
+          const personalizedMessage = message
+            .replace(/{{first_name}}/g, lead.first_name || '')
+            .replace(/{{last_name}}/g, lead.last_name || '')
+            .replace(/{{company}}/g, lead.company || '')
+            .replace(/{{name}}/g, lead.first_name || '');
+
+          const personalizedSubject = (subject || 'Message from STRUCTURE')
+            .replace(/{{first_name}}/g, lead.first_name || '')
+            .replace(/{{name}}/g, lead.first_name || '');
+
+          // Determine which email account to use
+          const fromEmail = emailAccount === 'haarith' 
+            ? 'haarith@structurelogistics.com' 
+            : 'sales@structurelogistics.com';
+
+          const emailResult = await sendEmail({
+            to: lead.email,
+            subject: personalizedSubject,
+            html: personalizedMessage.replace(/\n/g, '<br>'),
+            fromName: emailAccount === 'haarith' ? 'Haarith Imran' : 'STRUCTURE Team',
+            fromEmail
+          });
+
+          results.push({ 
+            leadId, 
+            name: `${lead.first_name} ${lead.last_name}`,
+            channel: 'email',
+            success: emailResult.success !== false,
+            to: lead.email
+          });
+        }
+
+        if (channel === 'whatsapp' && lead.phone) {
+          // Personalize message
+          const personalizedMessage = message
+            .replace(/{{first_name}}/g, lead.first_name || '')
+            .replace(/{{last_name}}/g, lead.last_name || '')
+            .replace(/{{company}}/g, lead.company || '')
+            .replace(/{{name}}/g, lead.first_name || '');
+
+          // Use specified WhatsApp instance
+          const isInitial = whatsappInstance === 'haarith';
+
+          const waResult = await sendWhatsApp({
+            phone: lead.phone,
+            message: personalizedMessage,
+            isInitial
+          });
+
+          results.push({ 
+            leadId, 
+            name: `${lead.first_name} ${lead.last_name}`,
+            channel: 'whatsapp',
+            success: waResult.success,
+            to: lead.phone,
+            instance: isInitial ? 'Haarith (+971)' : 'Meta (+44)'
+          });
+        }
+
+        if (channel === 'both') {
+          // Send both email and WhatsApp
+          if (lead.email) {
+            const personalizedMessage = message
+              .replace(/{{first_name}}/g, lead.first_name || '')
+              .replace(/{{name}}/g, lead.first_name || '');
+            const personalizedSubject = (subject || 'Message from STRUCTURE')
+              .replace(/{{first_name}}/g, lead.first_name || '');
+
+            const fromEmail = emailAccount === 'haarith' 
+              ? 'haarith@structurelogistics.com' 
+              : 'sales@structurelogistics.com';
+
+            await sendEmail({
+              to: lead.email,
+              subject: personalizedSubject,
+              html: personalizedMessage.replace(/\n/g, '<br>'),
+              fromName: emailAccount === 'haarith' ? 'Haarith Imran' : 'STRUCTURE Team',
+              fromEmail
+            });
+          }
+
+          if (lead.phone) {
+            const personalizedMessage = message
+              .replace(/{{first_name}}/g, lead.first_name || '')
+              .replace(/{{name}}/g, lead.first_name || '');
+
+            await sendWhatsApp({
+              phone: lead.phone,
+              message: personalizedMessage,
+              isInitial: whatsappInstance === 'haarith'
+            });
+          }
+
+          results.push({ 
+            leadId, 
+            name: `${lead.first_name} ${lead.last_name}`,
+            channel: 'both',
+            success: true
+          });
+        }
+      } catch (sendError) {
+        results.push({ 
+          leadId, 
+          name: `${lead.first_name} ${lead.last_name}`,
+          success: false, 
+          error: sendError.message 
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    
+    res.json({
+      success: true,
+      data: results,
+      message: `Sent to ${successCount}/${leadIds.length} leads`
+    });
+  } catch (error) {
+    console.error('Error in manual send:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send messages',
       message: error.message
     });
   }

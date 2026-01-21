@@ -202,11 +202,17 @@ export async function getLeads(options = {}) {
   const countResult = await query(countSql, params);
   const totalCount = parseInt(countResult.rows[0].count);
 
-  // Add sorting
+  // Add sorting - handle score specially to put high scores first
   const validSortColumns = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'status', 'source', 'score', 'priority'];
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-  sql += ` ORDER BY ${safeSortBy} ${safeSortOrder}`;
+  
+  // For score sorting, also consider nulls
+  if (safeSortBy === 'score') {
+    sql += ` ORDER BY COALESCE(${safeSortBy}, 0) ${safeSortOrder}`;
+  } else {
+    sql += ` ORDER BY ${safeSortBy} ${safeSortOrder}`;
+  }
 
   // Add pagination
   const offset = (page - 1) * limit;

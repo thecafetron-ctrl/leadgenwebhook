@@ -113,6 +113,27 @@ export const leadsApi = {
    */
   markAttended: async (id) => {
     return api.post(`/leads/${id}/attended`);
+  },
+
+  /**
+   * Score a lead with AI
+   */
+  scoreLead: async (id) => {
+    return api.post(`/leads/${id}/score`);
+  },
+
+  /**
+   * Score all unscored leads with AI
+   */
+  scoreAllLeads: async () => {
+    return api.post('/leads/score-all');
+  },
+
+  /**
+   * Manual send messages to selected leads
+   */
+  manualSend: async (data) => {
+    return api.post('/leads/manual-send', data);
   }
 };
 
