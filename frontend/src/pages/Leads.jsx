@@ -192,7 +192,7 @@ function Leads() {
   const scoreAllMutation = useMutation({
     mutationFn: () => leadsApi.scoreAllLeads(),
     onSuccess: (data) => {
-      toast.success(`Scored ${data.data.length} leads with AI!`);
+      toast.success(`Scored ${data.data.length} leads!`);
       queryClient.invalidateQueries(['leads']);
     },
     onError: (error) => {
@@ -200,8 +200,23 @@ function Leads() {
     }
   });
 
+  // Rescore all leads mutation
+  const rescoreAllMutation = useMutation({
+    mutationFn: () => leadsApi.rescoreAllLeads(),
+    onSuccess: (data) => {
+      toast.success(`Re-scored ${data.data.length} leads!`);
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to rescore leads');
+    }
+  });
+
   // Manual send state
   const [showManualSend, setShowManualSend] = useState(false);
+
+  // AI Advice modal state
+  const [adviceModal, setAdviceModal] = useState({ open: false, leadId: null });
 
   // State for workflow modal
   const [workflowModal, setWorkflowModal] = useState({ open: false, lead: null, status: null });
@@ -269,13 +284,13 @@ function Leads() {
         
         <div className="flex items-center gap-3">
           <button
-            onClick={() => scoreAllMutation.mutate()}
-            disabled={scoreAllMutation.isLoading}
+            onClick={() => rescoreAllMutation.mutate()}
+            disabled={rescoreAllMutation.isLoading || scoreAllMutation.isLoading}
             className="px-4 py-2 rounded-xl bg-accent-500/20 border border-accent-500/50 text-accent-300 hover:bg-accent-500/30 transition-all flex items-center gap-2"
-            title="Score all leads with AI"
+            title="Re-score all leads with proper logic"
           >
             <Sparkles className="w-4 h-4" />
-            {scoreAllMutation.isLoading ? 'Scoring...' : 'AI Score'}
+            {rescoreAllMutation.isLoading ? 'Scoring...' : 'Score All'}
           </button>
           <button
             onClick={() => setShowManualSend(true)}
@@ -651,6 +666,7 @@ function Leads() {
                       <ScoreCell 
                         score={lead.score} 
                         onScore={() => scoreMutation.mutate(lead.id)}
+                        onAdvice={() => setAdviceModal({ open: true, leadId: lead.id })}
                         isLoading={scoreMutation.isLoading}
                       />
                     </td>
@@ -839,6 +855,13 @@ function Leads() {
         selectedLeads={selectedLeads}
         leads={leads}
         onClose={() => setShowManualSend(false)}
+      />
+
+      {/* AI Advice Modal */}
+      <AdviceModal
+        isOpen={adviceModal.open}
+        leadId={adviceModal.leadId}
+        onClose={() => setAdviceModal({ open: false, leadId: null })}
       />
     </div>
   );
@@ -1127,9 +1150,9 @@ function WorkflowModal({ isOpen, lead, initialStatus, onClose, onEnroll, onCance
 }
 
 /**
- * ScoreCell - Shows AI priority score with color coding
+ * ScoreCell - Shows priority score with color coding and advice button
  */
-function ScoreCell({ score, onScore, isLoading }) {
+function ScoreCell({ score, onScore, onAdvice, isLoading }) {
   if (score === null || score === undefined || score === 0) {
     return (
       <button
@@ -1145,16 +1168,20 @@ function ScoreCell({ score, onScore, isLoading }) {
 
   // Color based on score
   const getScoreColor = (s) => {
-    if (s >= 80) return 'text-success-400 bg-success-500/20';
-    if (s >= 60) return 'text-primary-400 bg-primary-500/20';
-    if (s >= 40) return 'text-warning-400 bg-warning-500/20';
-    return 'text-dark-400 bg-dark-700/50';
+    if (s >= 80) return 'text-success-400 bg-success-500/20 border-success-500/30';
+    if (s >= 60) return 'text-primary-400 bg-primary-500/20 border-primary-500/30';
+    if (s >= 40) return 'text-warning-400 bg-warning-500/20 border-warning-500/30';
+    return 'text-dark-400 bg-dark-700/50 border-dark-600';
   };
 
   return (
-    <div className={cn("px-2 py-1 rounded-lg text-sm font-medium", getScoreColor(score))}>
+    <button
+      onClick={onAdvice}
+      className={cn("px-2 py-1 rounded-lg text-sm font-bold border hover:scale-105 transition-transform", getScoreColor(score))}
+      title="Click for AI advice on this lead"
+    >
       {score}
-    </div>
+    </button>
   );
 }
 
@@ -1385,6 +1412,125 @@ function ManualSendModal({ isOpen, selectedLeads, leads, onClose }) {
             )}
           </button>
         </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/**
+ * AdviceModal - AI-powered advice for approaching a lead
+ */
+function AdviceModal({ isOpen, leadId, onClose }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['leadAdvice', leadId],
+    queryFn: () => leadsApi.getAdvice(leadId),
+    enabled: isOpen && !!leadId,
+  });
+
+  if (!isOpen) return null;
+
+  const advice = data?.data;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Brain className="w-5 h-5 text-accent-400" />
+              AI Sales Advice
+            </h3>
+            {advice && (
+              <p className="text-sm text-dark-400 mt-1">
+                {advice.name} • {advice.company || 'Unknown Company'} • Score: <span className="text-accent-400 font-bold">{advice.score}</span>
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="py-12 text-center">
+            <div className="w-10 h-10 border-2 border-accent-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-dark-400">Analyzing lead...</p>
+          </div>
+        ) : error ? (
+          <div className="py-8 text-center text-danger-400">
+            <p>Failed to get advice. Please try again.</p>
+          </div>
+        ) : advice ? (
+          <div className="space-y-6">
+            {/* Assessment */}
+            <div className="p-4 rounded-xl bg-accent-500/10 border border-accent-500/30">
+              <h4 className="text-sm font-semibold text-accent-300 mb-2">Assessment</h4>
+              <p className="text-dark-200">{advice.assessment}</p>
+            </div>
+
+            {/* Talking Points */}
+            {advice.talkingPoints && advice.talkingPoints.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-dark-300 mb-3">Key Talking Points</h4>
+                <ul className="space-y-2">
+                  {advice.talkingPoints.map((point, i) => (
+                    <li key={i} className="flex items-start gap-2 p-3 rounded-lg bg-dark-800/50">
+                      <CheckCircle2 className="w-5 h-5 text-success-400 mt-0.5 shrink-0" />
+                      <span className="text-dark-200">{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Potential Objections */}
+            {advice.objections && advice.objections.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-dark-300 mb-3">Prepare For These Objections</h4>
+                <ul className="space-y-2">
+                  {advice.objections.map((obj, i) => (
+                    <li key={i} className="flex items-start gap-2 p-3 rounded-lg bg-warning-500/10 border border-warning-500/20">
+                      <AlertCircle className="w-5 h-5 text-warning-400 mt-0.5 shrink-0" />
+                      <span className="text-dark-200">{obj}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Opening Line */}
+            {advice.openingLine && (
+              <div className="p-4 rounded-xl bg-primary-500/10 border border-primary-500/30">
+                <h4 className="text-sm font-semibold text-primary-300 mb-2">Suggested Opening</h4>
+                <p className="text-dark-200 italic">"{advice.openingLine}"</p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(advice.openingLine);
+                    toast.success('Copied to clipboard!');
+                  }}
+                  className="mt-2 text-xs text-primary-400 hover:text-primary-300"
+                >
+                  Copy to clipboard
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
       </motion.div>
     </motion.div>
   );

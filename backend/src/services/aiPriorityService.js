@@ -1,7 +1,7 @@
 /**
  * AI Priority Scoring Service
  * 
- * Uses OpenAI to analyze lead data and calculate a priority score (0-100)
+ * Calculates priority score based on REAL business logic for logistics automation
  * Higher scores = higher priority leads
  */
 
@@ -13,138 +13,250 @@ const openai = process.env.OPENAI_API_KEY
   : null;
 
 /**
- * Calculate AI priority score for a lead
- * Returns a score from 0-100
+ * SCORING WEIGHTS - Based on actual conversion signals
+ */
+const WEIGHTS = {
+  // Budget is KING - someone with 35k+ budget is serious
+  BUDGET_100K_PLUS: 30,      // 100k+ AED budget
+  BUDGET_35K_100K: 25,       // 35k-100k budget (sweet spot)
+  BUDGET_15K_35K: 15,        // 15k-35k budget
+  BUDGET_UNDER_15K: 5,       // Under 15k
+
+  // Volume indicates scale and need
+  VOLUME_5000_PLUS: 20,      // 5000+ shipments/month = enterprise
+  VOLUME_1000_5000: 18,      // 1000-5000 = serious operation
+  VOLUME_500_1000: 15,       // 500-1000 = growing business
+  VOLUME_100_500: 10,        // 100-500 = small but viable
+  VOLUME_UNDER_100: 5,       // Under 100 = maybe too small
+
+  // Decision maker role
+  ROLE_OWNER_CEO: 15,        // Owner/CEO/Founder = can sign
+  ROLE_DIRECTOR_VP: 12,      // Director/VP = strong influence
+  ROLE_MANAGER: 8,           // Manager = can champion
+  ROLE_OTHER: 3,             // Other = might be researcher
+
+  // Contact completeness (shows intent)
+  HAS_PHONE: 8,              // Gave phone = serious
+  HAS_COMPANY: 5,            // Named company = not tire-kicker
+  BUSINESS_EMAIL: 5,         // Company email > gmail
+  
+  // Meeting status
+  HAS_MEETING_BOOKED: 10,    // Already booked = very hot
+  
+  // Automation intent mentioned
+  CLEAR_PAIN_POINT: 5,       // Mentioned specific problem
+};
+
+/**
+ * Calculate score with REAL logic
  */
 export async function calculatePriorityScore(lead) {
-  if (!openai) {
-    console.warn('OpenAI API key not set, using fallback scoring');
-    return calculateFallbackScore(lead);
+  let score = 0;
+  let factors = [];
+  
+  const cf = lead.custom_fields || {};
+  
+  // ============================================
+  // BUDGET SCORING (Most important)
+  // ============================================
+  const budgetField = cf["what's_your_estimated_budget_for_ai_implementation?"] || cf.budget || '';
+  const budgetLower = budgetField.toLowerCase();
+  
+  if (budgetLower.includes('100k') || budgetLower.includes('100,000')) {
+    score += WEIGHTS.BUDGET_100K_PLUS;
+    factors.push({ factor: 'Budget 100k+', points: WEIGHTS.BUDGET_100K_PLUS });
+  } else if (budgetLower.includes('35k') || budgetLower.includes('50k') || budgetLower.includes('35,000') || budgetLower.includes('35k_aed>') || budgetLower.includes('35k aed')) {
+    score += WEIGHTS.BUDGET_35K_100K;
+    factors.push({ factor: 'Budget 35k-100k AED', points: WEIGHTS.BUDGET_35K_100K });
+  } else if (budgetLower.includes('15k') || budgetLower.includes('20k') || budgetLower.includes('25k')) {
+    score += WEIGHTS.BUDGET_15K_35K;
+    factors.push({ factor: 'Budget 15k-35k', points: WEIGHTS.BUDGET_15K_35K });
+  } else if (budgetField) {
+    score += WEIGHTS.BUDGET_UNDER_15K;
+    factors.push({ factor: 'Has budget (under 15k)', points: WEIGHTS.BUDGET_UNDER_15K });
   }
 
-  try {
-    const prompt = `You are a B2B lead scoring expert for a logistics automation company (STRUCTURE). 
-Analyze this lead and provide a priority score from 0-100 based on their likelihood to convert and potential value.
+  // ============================================
+  // VOLUME SCORING (Scale indicator)
+  // ============================================
+  const volumeField = cf["how_many_shipments_do_you_receive_on_average_per_month?"] || cf.volume || cf.shipments || '';
+  const volumeLower = volumeField.toLowerCase();
+  
+  if (volumeLower.includes('10,000') || volumeLower.includes('10000') || volumeLower.includes('5,000_-_10,000') || volumeLower.includes('10k')) {
+    score += WEIGHTS.VOLUME_5000_PLUS;
+    factors.push({ factor: 'Volume 5000+ shipments', points: WEIGHTS.VOLUME_5000_PLUS });
+  } else if (volumeLower.includes('1,000_-_5,000') || volumeLower.includes('1000') || volumeLower.includes('5,000') || volumeLower.includes('1k-5k')) {
+    score += WEIGHTS.VOLUME_1000_5000;
+    factors.push({ factor: 'Volume 1000-5000 shipments', points: WEIGHTS.VOLUME_1000_5000 });
+  } else if (volumeLower.includes('500') || volumeLower.includes('500>') || volumeLower.includes('500_-_1,000') || volumeLower.includes('500-1000')) {
+    score += WEIGHTS.VOLUME_500_1000;
+    factors.push({ factor: 'Volume 500-1000 shipments', points: WEIGHTS.VOLUME_500_1000 });
+  } else if (volumeLower.includes('100') || volumeLower.includes('200') || volumeLower.includes('300')) {
+    score += WEIGHTS.VOLUME_100_500;
+    factors.push({ factor: 'Volume 100-500 shipments', points: WEIGHTS.VOLUME_100_500 });
+  } else if (volumeField) {
+    score += WEIGHTS.VOLUME_UNDER_100;
+    factors.push({ factor: 'Has volume info', points: WEIGHTS.VOLUME_UNDER_100 });
+  }
+
+  // ============================================
+  // ROLE SCORING (Decision maker?)
+  // ============================================
+  const roleField = cf["what's_your_role_in_the_company?"] || lead.job_title || '';
+  const roleLower = roleField.toLowerCase();
+  
+  if (roleLower.includes('owner') || roleLower.includes('ceo') || roleLower.includes('founder') || roleLower.includes('managing director') || roleLower.includes('md')) {
+    score += WEIGHTS.ROLE_OWNER_CEO;
+    factors.push({ factor: 'Owner/CEO/Founder', points: WEIGHTS.ROLE_OWNER_CEO });
+  } else if (roleLower.includes('director') || roleLower.includes('vp') || roleLower.includes('vice president') || roleLower.includes('coo') || roleLower.includes('cto')) {
+    score += WEIGHTS.ROLE_DIRECTOR_VP;
+    factors.push({ factor: 'Director/VP level', points: WEIGHTS.ROLE_DIRECTOR_VP });
+  } else if (roleLower.includes('manager') || roleLower.includes('head') || roleLower.includes('lead') || roleLower.includes('supervisor')) {
+    score += WEIGHTS.ROLE_MANAGER;
+    factors.push({ factor: 'Manager level', points: WEIGHTS.ROLE_MANAGER });
+  } else if (roleField) {
+    score += WEIGHTS.ROLE_OTHER;
+    factors.push({ factor: 'Has role info', points: WEIGHTS.ROLE_OTHER });
+  }
+
+  // ============================================
+  // CONTACT COMPLETENESS
+  // ============================================
+  if (lead.phone) {
+    score += WEIGHTS.HAS_PHONE;
+    factors.push({ factor: 'Provided phone number', points: WEIGHTS.HAS_PHONE });
+  }
+  
+  if (lead.company) {
+    score += WEIGHTS.HAS_COMPANY;
+    factors.push({ factor: 'Named their company', points: WEIGHTS.HAS_COMPANY });
+  }
+  
+  if (lead.email && !lead.email.includes('gmail') && !lead.email.includes('yahoo') && !lead.email.includes('hotmail') && !lead.email.includes('outlook')) {
+    score += WEIGHTS.BUSINESS_EMAIL;
+    factors.push({ factor: 'Business email domain', points: WEIGHTS.BUSINESS_EMAIL });
+  }
+
+  // ============================================
+  // MEETING STATUS
+  // ============================================
+  if (cf.booking_time || cf.calcom_booking_id) {
+    score += WEIGHTS.HAS_MEETING_BOOKED;
+    factors.push({ factor: 'Meeting already booked', points: WEIGHTS.HAS_MEETING_BOOKED });
+  }
+
+  // ============================================
+  // AUTOMATION INTENT
+  // ============================================
+  const whyAutomate = cf["why_do_you_want_to_automate_now?"] || '';
+  if (whyAutomate && whyAutomate.length > 20) {
+    score += WEIGHTS.CLEAR_PAIN_POINT;
+    factors.push({ factor: 'Explained automation need', points: WEIGHTS.CLEAR_PAIN_POINT });
+  }
+
+  // Cap at 100
+  score = Math.min(100, score);
+  
+  // Generate reason summary
+  const topFactors = factors.sort((a, b) => b.points - a.points).slice(0, 3);
+  const reason = topFactors.map(f => f.factor).join(', ');
+
+  console.log(`📊 Score for ${lead.first_name}: ${score}/100`);
+  factors.forEach(f => console.log(`   +${f.points}: ${f.factor}`));
+
+  return { score, reason, factors };
+}
+
+/**
+ * Get AI advice on how to approach this lead
+ */
+export async function getLeadAdvice(leadId) {
+  const result = await query('SELECT * FROM leads WHERE id = $1', [leadId]);
+  if (result.rows.length === 0) {
+    throw new Error('Lead not found');
+  }
+
+  const lead = result.rows[0];
+  const cf = lead.custom_fields || {};
+
+  if (!openai) {
+    return {
+      leadId,
+      advice: "OpenAI not configured. Based on the data: Focus on their specific pain points and volume. Emphasize ROI.",
+      talkingPoints: [
+        "Ask about their current manual processes",
+        "Discuss time savings with automation",
+        "Mention case studies of similar companies"
+      ]
+    };
+  }
+
+  const prompt = `You are a senior sales advisor for STRUCTURE, a logistics automation company. Analyze this lead and give specific, actionable advice.
 
 LEAD DATA:
-- Name: ${lead.first_name || ''} ${lead.last_name || ''}
-- Email: ${lead.email || 'Not provided'}
-- Phone: ${lead.phone || 'Not provided'}
+- Name: ${lead.first_name} ${lead.last_name}
 - Company: ${lead.company || 'Not provided'}
-- Job Title: ${lead.job_title || 'Not provided'}
-- Source: ${lead.source || 'Unknown'}
-- Notes: ${lead.notes || 'None'}
-- Custom Fields: ${JSON.stringify(lead.custom_fields || {})}
+- Role: ${cf["what's_your_role_in_the_company?"] || lead.job_title || 'Unknown'}
+- Email: ${lead.email}
+- Phone: ${lead.phone || 'Not provided'}
 
-SCORING CRITERIA (weight these factors):
-1. Decision maker role (Owner, CEO, COO, Operations Manager = high score)
-2. Company provided (yes = +10-20 points)
-3. Phone number provided (yes = +10 points, indicates serious interest)
-4. Budget mentioned (35k AED+ = high score)
-5. Shipment volume (1000+ = high score)
-6. Clear automation intent/pain point mentioned
-7. Email domain (company email > gmail/yahoo)
-8. Source quality (meta_forms with full info = good)
+BUSINESS INFO:
+- Budget: ${cf["what's_your_estimated_budget_for_ai_implementation?"] || 'Not specified'}
+- Monthly Shipments: ${cf["how_many_shipments_do_you_receive_on_average_per_month?"] || 'Not specified'}
+- Why automating: ${cf["why_do_you_want_to_automate_now?"] || 'Not specified'}
 
-Return ONLY a JSON object like this (no other text):
-{"score": 75, "reason": "Decision maker at logistics company with high volume and budget"}`;
+STRUCTURE offers AI automation for:
+- Quote generation
+- Document processing  
+- Invoicing
+- Customs paperwork
+- Finance reconciliation
 
+Provide:
+1. A brief assessment (2-3 sentences)
+2. 3 specific talking points for the call
+3. Potential objections they might have
+4. A suggested opening line for WhatsApp/email
+
+Format as JSON:
+{
+  "assessment": "...",
+  "talkingPoints": ["...", "...", "..."],
+  "objections": ["...", "..."],
+  "openingLine": "..."
+}`;
+
+  try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 150,
-      temperature: 0.3, // Lower temperature for more consistent scoring
+      max_tokens: 500,
+      temperature: 0.7,
     });
 
     const response = completion.choices[0].message.content.trim();
     
-    // Parse JSON response
     try {
       const parsed = JSON.parse(response);
-      const score = Math.min(100, Math.max(0, parseInt(parsed.score) || 50));
-      console.log(`🤖 AI Score for ${lead.first_name}: ${score} - ${parsed.reason}`);
-      return { score, reason: parsed.reason };
-    } catch (parseError) {
-      // Try to extract just the number if JSON parsing fails
-      const match = response.match(/\d+/);
-      const score = match ? Math.min(100, Math.max(0, parseInt(match[0]))) : 50;
-      return { score, reason: 'AI analysis' };
+      return {
+        leadId,
+        name: `${lead.first_name} ${lead.last_name}`,
+        company: lead.company,
+        score: lead.score,
+        ...parsed
+      };
+    } catch {
+      return {
+        leadId,
+        name: `${lead.first_name} ${lead.last_name}`,
+        advice: response,
+        talkingPoints: []
+      };
     }
   } catch (error) {
-    console.error('AI scoring error:', error);
-    return calculateFallbackScore(lead);
+    console.error('AI advice error:', error);
+    throw new Error('Failed to get AI advice');
   }
-}
-
-/**
- * Fallback scoring when OpenAI is unavailable
- */
-function calculateFallbackScore(lead) {
-  let score = 30; // Base score
-  let reasons = [];
-
-  // Has company name
-  if (lead.company) {
-    score += 15;
-    reasons.push('company provided');
-  }
-
-  // Has phone number (high intent indicator)
-  if (lead.phone) {
-    score += 10;
-    reasons.push('phone provided');
-  }
-
-  // Has job title
-  if (lead.job_title) {
-    score += 5;
-    const title = lead.job_title.toLowerCase();
-    if (title.includes('owner') || title.includes('ceo') || title.includes('director') || title.includes('manager')) {
-      score += 15;
-      reasons.push('decision maker');
-    }
-  }
-
-  // Email quality
-  if (lead.email) {
-    if (!lead.email.includes('gmail') && !lead.email.includes('yahoo') && !lead.email.includes('hotmail')) {
-      score += 10;
-      reasons.push('business email');
-    }
-  }
-
-  // Source quality
-  if (lead.source === 'meta_forms') {
-    score += 5;
-  }
-
-  // Custom fields analysis
-  const cf = lead.custom_fields || {};
-  
-  // Budget
-  const budget = cf["what's_your_estimated_budget_for_ai_implementation?"] || cf.budget || '';
-  if (budget.includes('35k') || budget.includes('50k') || budget.includes('100k')) {
-    score += 15;
-    reasons.push('high budget');
-  }
-
-  // Shipment volume
-  const volume = cf["how_many_shipments_do_you_receive_on_average_per_month?"] || cf.volume || '';
-  if (volume.includes('1,000') || volume.includes('5,000') || volume.includes('10,000')) {
-    score += 10;
-    reasons.push('high volume');
-  }
-
-  // Has meeting booked
-  if (cf.booking_time || cf.calcom_booking_id) {
-    score += 10;
-    reasons.push('meeting booked');
-  }
-
-  return { 
-    score: Math.min(100, score), 
-    reason: reasons.length > 0 ? reasons.join(', ') : 'basic scoring' 
-  };
 }
 
 /**
@@ -157,7 +269,7 @@ export async function scoreLead(leadId) {
   }
 
   const lead = result.rows[0];
-  const { score, reason } = await calculatePriorityScore(lead);
+  const { score, reason, factors } = await calculatePriorityScore(lead);
 
   // Update the score in database
   await query(
@@ -166,14 +278,14 @@ export async function scoreLead(leadId) {
   );
 
   console.log(`📊 Scored lead ${lead.first_name}: ${score}/100 (${reason})`);
-  return { leadId, score, reason };
+  return { leadId, name: `${lead.first_name} ${lead.last_name}`, score, reason, factors };
 }
 
 /**
  * Score all leads that don't have a score yet
  */
 export async function scoreAllLeads() {
-  const result = await query('SELECT * FROM leads WHERE score = 0 OR score IS NULL ORDER BY created_at DESC LIMIT 50');
+  const result = await query('SELECT * FROM leads WHERE score = 0 OR score IS NULL ORDER BY created_at DESC LIMIT 100');
   const leads = result.rows;
 
   console.log(`📊 Scoring ${leads.length} leads...`);
@@ -181,12 +293,9 @@ export async function scoreAllLeads() {
   const results = [];
   for (const lead of leads) {
     try {
-      const { score, reason } = await calculatePriorityScore(lead);
+      const { score, reason, factors } = await calculatePriorityScore(lead);
       await query('UPDATE leads SET score = $1, updated_at = NOW() WHERE id = $2', [score, lead.id]);
       results.push({ id: lead.id, name: `${lead.first_name} ${lead.last_name}`, score, reason });
-      
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
     } catch (error) {
       console.error(`Failed to score lead ${lead.id}:`, error);
     }
@@ -196,15 +305,32 @@ export async function scoreAllLeads() {
 }
 
 /**
- * Re-score a lead (force recalculation)
+ * Re-score ALL leads (force recalculation)
  */
-export async function rescoreLead(leadId) {
-  return scoreLead(leadId);
+export async function rescoreAllLeads() {
+  const result = await query('SELECT * FROM leads ORDER BY created_at DESC');
+  const leads = result.rows;
+
+  console.log(`📊 Re-scoring ALL ${leads.length} leads...`);
+
+  const results = [];
+  for (const lead of leads) {
+    try {
+      const { score, reason } = await calculatePriorityScore(lead);
+      await query('UPDATE leads SET score = $1, updated_at = NOW() WHERE id = $2', [score, lead.id]);
+      results.push({ id: lead.id, name: `${lead.first_name} ${lead.last_name}`, score, reason });
+    } catch (error) {
+      console.error(`Failed to score lead ${lead.id}:`, error);
+    }
+  }
+
+  return results;
 }
 
 export default {
   calculatePriorityScore,
   scoreLead,
   scoreAllLeads,
-  rescoreLead
+  rescoreAllLeads,
+  getLeadAdvice
 };

@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import Lead from '../models/Lead.js';
 import { leadSchema, leadQuerySchema, validateBody, validateQuery } from '../middleware/validation.js';
-import { scoreLead, scoreAllLeads, rescoreLead } from '../services/aiPriorityService.js';
+import { scoreLead, scoreAllLeads, rescoreAllLeads, getLeadAdvice } from '../services/aiPriorityService.js';
 import { sendWhatsApp } from '../services/whatsappService.js';
 import { sendEmail } from '../services/emailService.js';
 import { query } from '../database/connection.js';
@@ -261,7 +261,7 @@ router.post('/:id/attended', async (req, res) => {
 
 /**
  * POST /api/leads/:id/score
- * Calculate AI priority score for a lead
+ * Calculate priority score for a lead
  */
 router.post('/:id/score', async (req, res) => {
   try {
@@ -282,8 +282,29 @@ router.post('/:id/score', async (req, res) => {
 });
 
 /**
+ * GET /api/leads/:id/advice
+ * Get AI advice on how to approach this lead
+ */
+router.get('/:id/advice', async (req, res) => {
+  try {
+    const advice = await getLeadAdvice(req.params.id);
+    res.json({
+      success: true,
+      data: advice
+    });
+  } catch (error) {
+    console.error('Error getting advice:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get advice',
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /api/leads/score-all
- * Score all unscored leads with AI
+ * Score all unscored leads
  */
 router.post('/score-all', async (req, res) => {
   try {
@@ -298,6 +319,28 @@ router.post('/score-all', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to score leads',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/leads/rescore-all
+ * Re-score ALL leads (force recalculation)
+ */
+router.post('/rescore-all', async (req, res) => {
+  try {
+    const results = await rescoreAllLeads();
+    res.json({
+      success: true,
+      data: results,
+      message: `Re-scored ${results.length} leads`
+    });
+  } catch (error) {
+    console.error('Error rescoring leads:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to rescore leads',
       message: error.message
     });
   }

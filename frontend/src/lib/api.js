@@ -134,6 +134,20 @@ export const leadsApi = {
    */
   manualSend: async (data) => {
     return api.post('/leads/manual-send', data);
+  },
+
+  /**
+   * Re-score ALL leads
+   */
+  rescoreAllLeads: async () => {
+    return api.post('/leads/rescore-all');
+  },
+
+  /**
+   * Get AI advice on how to approach a lead
+   */
+  getAdvice: async (id) => {
+    return api.get(`/leads/${id}/advice`);
   }
 };
 
