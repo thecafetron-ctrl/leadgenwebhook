@@ -683,6 +683,9 @@ function Leads() {
                           <p className="font-medium text-white">
                             {getFullName(lead.first_name, lead.last_name)}
                           </p>
+                          <p className="text-xs text-dark-500">
+                            {lead.lead_type ? `Type: ${formatLeadType(lead.lead_type)}` : 'Type: —'}
+                          </p>
                           {lead.company && (
                             <p className="text-xs text-dark-400 flex items-center gap-1">
                               <Building2 className="w-3 h-3" />
