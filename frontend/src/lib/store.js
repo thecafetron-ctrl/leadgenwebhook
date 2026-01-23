@@ -31,6 +31,7 @@ export const useAppStore = create(
         search: '',
         status: [],
         source: [],
+        leadType: [],
         priority: '',
         dateFrom: '',
         dateTo: ''
@@ -43,6 +44,7 @@ export const useAppStore = create(
           search: '',
           status: [],
           source: [],
+          leadType: [],
           priority: '',
           dateFrom: '',
           dateTo: ''

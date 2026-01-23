@@ -64,6 +64,24 @@ import LeadDetailModal from '../components/LeadDetailModal';
 const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+const LEAD_TYPES = ['consultation', 'ebook'];
+
+// Helper for lead type badge styling
+const getLeadTypeColor = (type) => {
+  switch (type) {
+    case 'consultation':
+      return 'bg-accent-500/20 text-accent-300 border border-accent-500/30';
+    case 'ebook':
+      return 'bg-primary-500/20 text-primary-300 border border-primary-500/30';
+    default:
+      return 'bg-dark-700/50 text-dark-400 border border-dark-600';
+  }
+};
+
+const formatLeadType = (type) => {
+  if (!type) return '—';
+  return type.charAt(0).toUpperCase() + type.slice(1);
+};
 
 function Leads() {
   const queryClient = useQueryClient();
@@ -107,6 +125,7 @@ function Leads() {
       search: leadFilters.search,
       status: leadFilters.status.join(','),
       source: leadFilters.source.join(','),
+      leadType: leadFilters.leadType?.join(',') || '',
       priority: leadFilters.priority,
       dateFrom: leadFilters.dateFrom,
       dateTo: leadFilters.dateTo
@@ -266,6 +285,7 @@ function Leads() {
   const activeFilterCount = [
     leadFilters.status.length,
     leadFilters.source.length,
+    leadFilters.leadType?.length || 0,
     leadFilters.priority ? 1 : 0,
     leadFilters.dateFrom ? 1 : 0,
     leadFilters.dateTo ? 1 : 0
@@ -437,6 +457,32 @@ function Leads() {
                   </select>
                 </div>
 
+                {/* Lead Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Lead Type</label>
+                  <div className="flex flex-wrap gap-2">
+                    {LEAD_TYPES.map(type => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          const newTypes = leadFilters.leadType?.includes(type)
+                            ? leadFilters.leadType.filter(t => t !== type)
+                            : [...(leadFilters.leadType || []), type];
+                          setLeadFilters({ leadType: newTypes });
+                        }}
+                        className={cn(
+                          "px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all",
+                          leadFilters.leadType?.includes(type)
+                            ? getLeadTypeColor(type)
+                            : "bg-dark-800/50 text-dark-400 hover:text-white"
+                        )}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Date Range */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-dark-300">Date Range</label>
@@ -546,6 +592,15 @@ function Leads() {
                 </th>
                 <th 
                   className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
+                  onClick={() => handleSort('lead_type')}
+                >
+                  <div className="flex items-center gap-1">
+                    Type
+                    {sortBy === 'lead_type' && (sortOrder === 'ASC' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                  </div>
+                </th>
+                <th 
+                  className="p-4 text-left text-dark-400 text-sm font-medium cursor-pointer hover:text-white"
                   onClick={() => handleSort('status')}
                 >
                   <div className="flex items-center gap-1">
@@ -590,6 +645,7 @@ function Leads() {
                     <td className="p-4"><div className="skeleton w-32 h-10 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-40 h-8 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
+                    <td className="p-4"><div className="skeleton w-16 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-20 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-12 h-6 rounded" /></td>
                     <td className="p-4"><div className="skeleton w-24 h-6 rounded" /></td>
@@ -599,7 +655,7 @@ function Leads() {
                 ))
               ) : leads.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-12 text-center text-dark-400">
+                  <td colSpan="10" className="p-12 text-center text-dark-400">
                     <div className="flex flex-col items-center">
                       <Search className="w-12 h-12 mb-4 opacity-50" />
                       <p className="text-lg font-medium">No leads found</p>
@@ -653,8 +709,25 @@ function Leads() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <span className={cn("badge", getSourceColor(lead.source))}>
-                        {formatSource(lead.source)}
+                      <div className="space-y-1">
+                        <span className={cn("badge", getSourceColor(lead.source))}>
+                          {formatSource(lead.source)}
+                        </span>
+                        {lead.custom_fields?.ad_name && (
+                          <p className="text-xs text-dark-500" title={lead.custom_fields?.campaign_name}>
+                            {lead.custom_fields.ad_name}
+                          </p>
+                        )}
+                        {lead.custom_fields?.meta_ad_name && !lead.custom_fields?.ad_name && (
+                          <p className="text-xs text-dark-500" title={lead.custom_fields?.meta_campaign_name}>
+                            {lead.custom_fields.meta_ad_name}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className={cn("badge text-xs", getLeadTypeColor(lead.lead_type))}>
+                        {formatLeadType(lead.lead_type)}
                       </span>
                     </td>
                     <td className="p-4">

@@ -602,6 +602,117 @@ router.post('/meta/poll', async (req, res) => {
 });
 
 /**
+ * GET /api/webhooks/meta/debug - Debug endpoint to see raw Meta API response
+ * Shows exactly what data Meta is returning for leads
+ */
+router.get('/meta/debug', async (req, res) => {
+  try {
+    const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
+    const formIds = (process.env.META_FORM_IDS || '').split(',').filter(Boolean);
+    
+    if (!pageAccessToken) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'META_PAGE_ACCESS_TOKEN not set' 
+      });
+    }
+    
+    if (formIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'META_FORM_IDS not set' 
+      });
+    }
+    
+    const results = [];
+    
+    for (const formId of formIds) {
+      // Fetch raw leads data with ALL possible fields
+      const url = `https://graph.facebook.com/v18.0/${formId.trim()}/leads?access_token=${pageAccessToken}&fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,is_organic,platform&limit=5`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      // Also try to get form info
+      const formUrl = `https://graph.facebook.com/v18.0/${formId.trim()}?access_token=${pageAccessToken}&fields=name,status,page`;
+      const formResponse = await fetch(formUrl);
+      const formData = await formResponse.json();
+      
+      results.push({
+        formId: formId.trim(),
+        formInfo: formData,
+        leadsCount: data.data?.length || 0,
+        rawLeadsData: data.data?.slice(0, 3) || [], // Show first 3 leads
+        apiError: data.error || null,
+        fieldsRequested: 'id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,is_organic,platform'
+      });
+      
+      // If we got an ad_id, try to fetch campaign info from it
+      if (data.data?.[0]?.ad_id) {
+        const adId = data.data[0].ad_id;
+        const adUrl = `https://graph.facebook.com/v18.0/${adId}?access_token=${pageAccessToken}&fields=name,campaign_id,campaign{id,name},adset_id,adset{id,name}`;
+        const adResponse = await fetch(adUrl);
+        const adData = await adResponse.json();
+        results[results.length - 1].adInfo = adData;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Raw Meta API data (last 3 leads per form)',
+      timestamp: new Date().toISOString(),
+      forms: results,
+      note: 'Check if ad_id, campaign_id, campaign_name are populated. If all null, Meta is not providing campaign data for these leads.'
+    });
+  } catch (error) {
+    console.error('Meta debug error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/webhooks/meta/campaigns - Try to get leads organized by campaign
+ * Alternative approach: query campaigns first, then get leads
+ */
+router.get('/meta/campaigns', async (req, res) => {
+  try {
+    const pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN;
+    const adAccountId = process.env.META_AD_ACCOUNT_ID;
+    
+    if (!pageAccessToken) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'META_PAGE_ACCESS_TOKEN not set' 
+      });
+    }
+    
+    if (!adAccountId) {
+      return res.json({
+        success: false,
+        error: 'META_AD_ACCOUNT_ID not set',
+        note: 'To get campaign data, add META_AD_ACCOUNT_ID to your environment (format: act_123456789)'
+      });
+    }
+    
+    // Get campaigns with lead gen objective
+    const campaignsUrl = `https://graph.facebook.com/v18.0/${adAccountId}/campaigns?access_token=${pageAccessToken}&fields=id,name,objective,status&filtering=[{"field":"objective","operator":"EQUAL","value":"OUTCOME_LEADS"}]&limit=10`;
+    
+    const response = await fetch(campaignsUrl);
+    const data = await response.json();
+    
+    res.json({
+      success: true,
+      campaigns: data.data || [],
+      error: data.error || null,
+      note: 'These are your lead gen campaigns. The campaign names can help identify ebook vs consultation campaigns.'
+    });
+  } catch (error) {
+    console.error('Meta campaigns error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/webhooks/ebook - Receive ebook signup leads
  * 
  * Expected payload:

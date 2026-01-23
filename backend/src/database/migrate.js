@@ -1,11 +1,12 @@
 /**
  * Database Migration for PostgreSQL (Neon)
  * 
- * Creates all tables including sequence automation.
+ * Creates all tables including sequence automation and chat intent scoring.
  */
 
 import { initDatabase, query, closeDatabase } from './connection.js';
 import { SEQUENCE_TABLES, DEFAULT_SEQUENCES, NEW_LEAD_SEQUENCE_STEPS, MEETING_BOOKED_STEPS, NO_SHOW_STEPS, EBOOK_NURTURE_STEPS } from './schema-sequences.js';
+import { CHAT_INTENT_TABLES } from './schema-chat-intent.js';
 
 const LEADS_TABLE = `
 CREATE TABLE IF NOT EXISTS leads (
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS leads (
   whatsapp_consent BOOLEAN DEFAULT false,
   consent_timestamp TIMESTAMPTZ,
   gdpr_consent JSONB,
+  lead_type VARCHAR(50) DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   converted_at TIMESTAMPTZ,
@@ -65,6 +67,16 @@ CREATE TABLE IF NOT EXISTS webhook_logs (
 );
 `;
 
+const SYSTEM_SETTINGS_TABLE = `
+CREATE TABLE IF NOT EXISTS system_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+`;
+
 const INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);
 CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
@@ -88,6 +100,10 @@ export async function migrate() {
     await query(WEBHOOK_LOGS_TABLE);
     console.log('✅ Webhook logs table ready');
     
+    // Create system settings table (for email rotation counter, etc.)
+    await query(SYSTEM_SETTINGS_TABLE);
+    console.log('✅ System settings table ready');
+    
     // Create indexes
     await query(INDEXES);
     console.log('✅ Core indexes created');
@@ -100,9 +116,22 @@ export async function migrate() {
       // Column might already exist
     }
     
+    // Add lead_type column if it doesn't exist (consultation, ebook, etc.)
+    try {
+      await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_type VARCHAR(50)`);
+      await query(`CREATE INDEX IF NOT EXISTS idx_leads_lead_type ON leads(lead_type)`);
+      console.log('✅ Lead type column ready');
+    } catch (e) {
+      // Column might already exist
+    }
+    
     // Create sequence automation tables
     await query(SEQUENCE_TABLES);
     console.log('✅ Sequence tables ready');
+    
+    // Create chat intent scoring tables
+    await query(CHAT_INTENT_TABLES);
+    console.log('✅ Chat intent tables ready');
     
     // Insert default sequences if they don't exist
     await seedDefaultSequences();
@@ -165,4 +194,3 @@ if (process.argv[1].includes('migrate.js')) {
 }
 
 export default migrate;
-// Migration trigger Tue Jan 20 16:10:26 PKT 2026

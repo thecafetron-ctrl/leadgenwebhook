@@ -1,16 +1,31 @@
 /**
  * Meta Leads Poller Service
  * 
- * Polls Meta Graph API for new leads as a fallback when webhooks fail.
- * Runs every 5 minutes to check for leads that may have been missed.
+ * Polls Meta Graph API for new leads every 2 minutes.
+ * Uses OpenAI to intelligently classify leads as 'ebook' or 'consultation'.
+ * 
+ * CAMPAIGN TRACKING:
+ * - Fetches ad/campaign info from Meta if ad_id is available
+ * - Uses OpenAI to analyze lead data for classification
+ * - Logs raw Meta data for debugging
  */
 
 import Lead from '../models/Lead.js';
 import { enrollLead } from './sequenceService.js';
+import OpenAI from 'openai';
 
-const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const POLL_INTERVAL = 2 * 60 * 1000; // 2 minutes
 let pollInterval = null;
 let lastPollTime = null;
+let openai = null;
+
+// Initialize OpenAI
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+}
 
 /**
  * Fetch leads from Meta Graph API
@@ -21,7 +36,8 @@ async function fetchMetaLeads(formId, pageAccessToken, since = null) {
   }
 
   try {
-    let url = `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${pageAccessToken}&fields=id,created_time,field_data`;
+    // Request all available fields
+    let url = `https://graph.facebook.com/v18.0/${formId}/leads?access_token=${pageAccessToken}&fields=id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,platform`;
     
     // Only fetch leads created after the last poll
     if (since) {
@@ -44,6 +60,123 @@ async function fetchMetaLeads(formId, pageAccessToken, since = null) {
 }
 
 /**
+ * Try to fetch campaign info from ad_id
+ */
+async function fetchAdCampaignInfo(adId, pageAccessToken) {
+  if (!adId || !pageAccessToken) return null;
+  
+  try {
+    const url = `https://graph.facebook.com/v18.0/${adId}?access_token=${pageAccessToken}&fields=name,campaign_id,campaign{name},adset_id,adset{name}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.error) {
+      console.log(`⚠️ Could not fetch ad info for ${adId}: ${data.error.message}`);
+      return null;
+    }
+    
+    return {
+      ad_name: data.name,
+      campaign_id: data.campaign_id,
+      campaign_name: data.campaign?.name,
+      adset_id: data.adset_id,
+      adset_name: data.adset?.name
+    };
+  } catch (error) {
+    console.log(`⚠️ Error fetching ad info: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Use OpenAI to classify lead type based on available data
+ */
+async function classifyLeadWithAI(leadData, campaignInfo) {
+  const ai = getOpenAI();
+  if (!ai) return 'unknown';
+  
+  try {
+    const prompt = `Analyze this lead data and classify it as either "ebook" (lead wanted to download an ebook/guide/playbook) or "consultation" (lead wanted to book a call/consultation/meeting).
+
+Lead form fields: ${JSON.stringify(leadData.custom_fields || {})}
+Campaign name: ${campaignInfo?.campaign_name || 'Unknown'}
+Ad set name: ${campaignInfo?.adset_name || 'Unknown'}
+Ad name: ${campaignInfo?.ad_name || 'Unknown'}
+Company: ${leadData.company || 'Unknown'}
+Job title: ${leadData.job_title || 'Unknown'}
+
+Based on this data, what type of lead is this? Respond with ONLY one word: "ebook" or "consultation" or "unknown" if you can't determine.`;
+
+    const response = await ai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 10,
+      temperature: 0
+    });
+
+    const classification = response.choices[0]?.message?.content?.trim().toLowerCase();
+    
+    if (classification === 'ebook' || classification === 'consultation') {
+      return classification;
+    }
+    return 'unknown';
+  } catch (error) {
+    console.log(`⚠️ AI classification failed: ${error.message}`);
+    return 'unknown';
+  }
+}
+
+/**
+ * Determine campaign type using all available methods
+ */
+async function determineCampaignType(metaLead, formId, leadInfo, campaignInfo) {
+  // Method 1: Check campaign/ad names for keywords
+  const allNames = [
+    campaignInfo?.campaign_name || '',
+    campaignInfo?.adset_name || '',
+    campaignInfo?.ad_name || '',
+    metaLead.campaign_name || '',
+    metaLead.adset_name || '',
+    metaLead.ad_name || ''
+  ].join(' ').toLowerCase();
+  
+  // Check for ebook-related keywords
+  if (allNames.match(/ebook|playbook|guide|download|pdf|free|resource/i)) {
+    console.log(`   🏷️ Classified as EBOOK (keyword match)`);
+    return 'ebook';
+  }
+  
+  // Check for consultation-related keywords
+  if (allNames.match(/consult|call|meeting|demo|book|schedule|discovery|strategy/i)) {
+    console.log(`   🏷️ Classified as CONSULTATION (keyword match)`);
+    return 'consultation';
+  }
+  
+  // Method 2: Check form field values for hints
+  const fieldValues = Object.values(leadInfo.custom_fields || {}).join(' ').toLowerCase();
+  if (fieldValues.match(/ebook|playbook|guide|download/i)) {
+    console.log(`   🏷️ Classified as EBOOK (form field match)`);
+    return 'ebook';
+  }
+  if (fieldValues.match(/consult|call|meeting|book/i)) {
+    console.log(`   🏷️ Classified as CONSULTATION (form field match)`);
+    return 'consultation';
+  }
+  
+  // Method 3: Use OpenAI as fallback
+  console.log(`   🤖 Using AI to classify lead...`);
+  const aiClassification = await classifyLeadWithAI(leadInfo, campaignInfo);
+  if (aiClassification !== 'unknown') {
+    console.log(`   🏷️ AI classified as ${aiClassification.toUpperCase()}`);
+    return aiClassification;
+  }
+  
+  // Default
+  console.log(`   🏷️ Could not classify - marked as UNKNOWN`);
+  return 'unknown';
+}
+
+/**
  * Extract lead info from Meta field_data
  */
 function extractLeadInfo(fieldData) {
@@ -54,7 +187,8 @@ function extractLeadInfo(fieldData) {
     phone: null,
     company: null,
     job_title: null,
-    custom_fields: {}
+    custom_fields: {},
+    raw_fields: fieldData // Keep raw for debugging
   };
 
   if (!Array.isArray(fieldData)) return info;
@@ -92,19 +226,18 @@ function extractLeadInfo(fieldData) {
 /**
  * Process a single lead from Meta
  */
-async function processMetaLead(metaLead, formId) {
+async function processMetaLead(metaLead, formId, pageAccessToken) {
   const leadgenId = metaLead.id;
   
-  // Check if lead already exists by source_id (leadgen_id)
+  // Check if lead already exists
   const existingBySourceId = await Lead.getLeadBySourceId(leadgenId);
   if (existingBySourceId) {
-    return null; // Already processed
+    return null;
   }
 
   // Extract lead info
   const leadInfo = extractLeadInfo(metaLead.field_data);
   
-  // Also check by email if we have one
   if (leadInfo.email) {
     const existingByEmail = await Lead.getLeadByEmail(leadInfo.email);
     if (existingByEmail) {
@@ -112,6 +245,43 @@ async function processMetaLead(metaLead, formId) {
       return null;
     }
   }
+
+  console.log(`\n📥 Processing new lead: ${leadInfo.first_name || 'Unknown'} ${leadInfo.last_name || ''}`);
+  console.log(`   📧 Email: ${leadInfo.email || 'N/A'}`);
+  console.log(`   📞 Phone: ${leadInfo.phone || 'N/A'}`);
+  
+  // Log raw Meta data for debugging
+  console.log(`   📊 Raw Meta data:`);
+  console.log(`      - ad_id: ${metaLead.ad_id || 'N/A'}`);
+  console.log(`      - ad_name: ${metaLead.ad_name || 'N/A'}`);
+  console.log(`      - campaign_id: ${metaLead.campaign_id || 'N/A'}`);
+  console.log(`      - campaign_name: ${metaLead.campaign_name || 'N/A'}`);
+  console.log(`      - adset_name: ${metaLead.adset_name || 'N/A'}`);
+
+  // Try to fetch additional campaign info from ad_id
+  let campaignInfo = null;
+  if (metaLead.ad_id && pageAccessToken) {
+    console.log(`   🔍 Fetching campaign info from ad_id...`);
+    campaignInfo = await fetchAdCampaignInfo(metaLead.ad_id, pageAccessToken);
+    if (campaignInfo) {
+      console.log(`      - Campaign: ${campaignInfo.campaign_name || 'N/A'}`);
+      console.log(`      - Ad Set: ${campaignInfo.adset_name || 'N/A'}`);
+      console.log(`      - Ad: ${campaignInfo.ad_name || 'N/A'}`);
+    }
+  }
+
+  // Determine campaign type
+  const campaignType = await determineCampaignType(metaLead, formId, leadInfo, campaignInfo);
+
+  // Merge all campaign data
+  const finalCampaignInfo = {
+    campaign_id: campaignInfo?.campaign_id || metaLead.campaign_id || null,
+    campaign_name: campaignInfo?.campaign_name || metaLead.campaign_name || null,
+    adset_id: campaignInfo?.adset_id || metaLead.adset_id || null,
+    adset_name: campaignInfo?.adset_name || metaLead.adset_name || null,
+    ad_id: metaLead.ad_id || null,
+    ad_name: campaignInfo?.ad_name || metaLead.ad_name || null
+  };
 
   // Create the lead
   const leadData = {
@@ -123,28 +293,46 @@ async function processMetaLead(metaLead, formId) {
     job_title: leadInfo.job_title,
     source: 'meta_forms',
     source_id: leadgenId,
+    campaign_id: finalCampaignInfo.campaign_id,
     custom_fields: {
       ...leadInfo.custom_fields,
       meta_form_id: formId,
       meta_leadgen_id: leadgenId,
-      imported_via: 'poller'
+      meta_ad_id: finalCampaignInfo.ad_id,
+      meta_ad_name: finalCampaignInfo.ad_name,
+      meta_adset_id: finalCampaignInfo.adset_id,
+      meta_adset_name: finalCampaignInfo.adset_name,
+      meta_campaign_id: finalCampaignInfo.campaign_id,
+      meta_campaign_name: finalCampaignInfo.campaign_name,
+      campaign_type: campaignType,
+      imported_via: 'poller',
+      raw_meta_data: JSON.stringify({
+        ad_id: metaLead.ad_id,
+        ad_name: metaLead.ad_name,
+        campaign_id: metaLead.campaign_id,
+        campaign_name: metaLead.campaign_name,
+        adset_id: metaLead.adset_id,
+        adset_name: metaLead.adset_name,
+        platform: metaLead.platform
+      })
     },
-    notes: 'Lead from Meta Forms (via polling)'
+    notes: `Lead from Meta Forms - Campaign: ${finalCampaignInfo.campaign_name || 'Unknown'} - Type: ${campaignType.toUpperCase()}`
   };
 
   try {
     const lead = await Lead.createLead(leadData);
-    console.log(`✅ [Poller] Created lead: ${leadInfo.first_name || 'Unknown'} ${leadInfo.last_name || ''} (${leadInfo.email || leadInfo.phone})`);
+    console.log(`   ✅ Created lead ID: ${lead.id}`);
+    console.log(`   🏷️ Campaign Type: ${campaignType.toUpperCase()}`);
 
-    // Enroll in sequence if we have email or phone
+    // Enroll in sequence
     if (lead.email || lead.phone) {
-      await enrollLead(lead.id, 'new_lead', 'meta_poller');
-      console.log(`📧 [Poller] Enrolled lead ${lead.id} in new_lead sequence`);
+      await enrollLead(lead.id, 'new_lead', { enrolledBy: 'meta_poller' });
+      console.log(`   📧 Enrolled in new_lead sequence`);
     }
 
     return lead;
   } catch (error) {
-    console.error(`❌ [Poller] Error creating lead:`, error.message);
+    console.error(`   ❌ Error creating lead:`, error.message);
     return null;
   }
 }
@@ -157,7 +345,6 @@ async function pollForLeads() {
   const formIds = (process.env.META_FORM_IDS || '').split(',').filter(Boolean);
 
   if (!pageAccessToken) {
-    // Silently skip if not configured
     return 0;
   }
 
@@ -167,13 +354,16 @@ async function pollForLeads() {
   }
 
   let totalProcessed = 0;
-  const since = lastPollTime || new Date(Date.now() - 24 * 60 * 60 * 1000); // Default to last 24 hours
+  const since = lastPollTime || new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  console.log(`\n🔄 [${new Date().toISOString()}] Polling Meta for new leads...`);
 
   for (const formId of formIds) {
     const leads = await fetchMetaLeads(formId.trim(), pageAccessToken, since);
+    console.log(`   Form ${formId}: ${leads.length} leads found`);
     
     for (const metaLead of leads) {
-      const processed = await processMetaLead(metaLead, formId.trim());
+      const processed = await processMetaLead(metaLead, formId.trim(), pageAccessToken);
       if (processed) totalProcessed++;
     }
   }
@@ -181,7 +371,7 @@ async function pollForLeads() {
   lastPollTime = new Date();
 
   if (totalProcessed > 0) {
-    console.log(`📊 [Poller] Processed ${totalProcessed} new leads from Meta`);
+    console.log(`\n📊 Processed ${totalProcessed} new leads`);
   }
 
   return totalProcessed;
@@ -201,12 +391,13 @@ export function startMetaLeadsPoller() {
   // Poll immediately on start
   pollForLeads().catch(console.error);
 
-  // Then poll every 5 minutes
+  // Then poll every 2 minutes
   pollInterval = setInterval(() => {
     pollForLeads().catch(console.error);
   }, POLL_INTERVAL);
 
-  console.log('✅ Meta leads poller started (polling every 5 minutes)');
+  console.log('✅ Meta leads poller started (polling every 2 minutes)');
+  console.log('   🤖 OpenAI classification: ' + (process.env.OPENAI_API_KEY ? 'enabled' : 'disabled'));
 }
 
 /**
@@ -221,14 +412,28 @@ export function stopMetaLeadsPoller() {
 }
 
 /**
- * Manually trigger a poll (for testing)
+ * Manually trigger a poll
  */
 export async function manualPoll() {
   return await pollForLeads();
 }
 
+/**
+ * Get poller status
+ */
+export function getPollerStatus() {
+  return {
+    running: pollInterval !== null,
+    lastPollTime,
+    pollIntervalMinutes: POLL_INTERVAL / 1000 / 60,
+    aiEnabled: !!process.env.OPENAI_API_KEY,
+    formIds: (process.env.META_FORM_IDS || '').split(',').filter(Boolean)
+  };
+}
+
 export default {
   startMetaLeadsPoller,
   stopMetaLeadsPoller,
-  manualPoll
+  manualPoll,
+  getPollerStatus
 };

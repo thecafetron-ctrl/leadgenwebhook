@@ -14,12 +14,16 @@ export const EBOOK_LINK = 'https://structurelogistics.com/90-day-freight-scaling
 // ============================================
 
 export const OPERATIONAL_EMAILS = {
-  // 1) Immediate email after form submission
+  // 1) Immediate email after form submission (includes ebook)
   welcome_calendar: {
     subject: 'Next step: schedule your automation consultation',
     body: `Hi {{first_name}},
 
 Thanks for applying for automation with STRUCTURE.
+
+Before we go any further, here is something that may be useful: our <b><a href="${EBOOK_LINK}">90-Day Freight Scaling Playbook</a></b>.
+
+It was designed for operations leaders running freight businesses who are already handling meaningful volume and are feeling the pressure of manual workflows. Have a read through when you get a chance.
 
 Based on the information you shared, the next step is a 45-minute automation consultation with our team.
 
@@ -1042,12 +1046,12 @@ STRUCTURE Team`
 // ============================================
 
 export const WHATSAPP_MESSAGES = {
-  // Immediate WhatsApp after form fill
+  // Immediate WhatsApp after form fill (mentions ebook sent with email)
   welcome: `Hey {{first_name}}, Haarith here from STRUCTURE.
 
 Thanks for applying for automation.
 
-My team has sent you an email with the next step to schedule a 45-minute automation consultation.
+My team has sent you an email with our 90-Day Freight Scaling Playbook and the next step to schedule a 45-minute automation consultation.
 
 Please check your email when you get a chance and book a time that works for you.
 

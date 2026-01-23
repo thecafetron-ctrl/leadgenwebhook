@@ -72,13 +72,23 @@ function LeadDetailModal({ lead, onClose }) {
                   <h2 className="text-2xl font-bold text-white">
                     {getFullName(lead.first_name, lead.last_name)}
                   </h2>
-                  <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
                     <span className={cn("badge", getStatusColor(lead.status))}>
                       {lead.status}
                     </span>
                     <span className={cn("badge", getSourceColor(lead.source))}>
                       {formatSource(lead.source)}
                     </span>
+                    {lead.lead_type && (
+                      <span className={cn(
+                        "badge",
+                        lead.lead_type === 'consultation' 
+                          ? "bg-accent-500/20 text-accent-300 border border-accent-500/30" 
+                          : "bg-primary-500/20 text-primary-300 border border-primary-500/30"
+                      )}>
+                        {lead.lead_type}
+                      </span>
+                    )}
                     <span className={cn("text-sm font-medium", getPriorityColor(lead.priority))}>
                       {lead.priority} priority
                     </span>
@@ -297,12 +307,78 @@ function LeadDetailModal({ lead, onClose }) {
                   </div>
                 )}
 
-                {/* Custom Fields */}
-                {lead.custom_fields && Object.keys(lead.custom_fields).length > 0 && (
+                {/* Lead Source Details (Where From) */}
+                {lead.custom_fields && (lead.custom_fields.ad_name || lead.custom_fields.meta_ad_name || lead.custom_fields.campaign_name || lead.custom_fields.meta_campaign_name) && (
+                  <div className="p-4 bg-accent-500/10 border border-accent-500/30 rounded-xl">
+                    <h4 className="text-sm font-medium text-accent-300 mb-3 flex items-center gap-1">
+                      📍 Where They Came From
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      {(lead.custom_fields.ad_name || lead.custom_fields.meta_ad_name) && (
+                        <div className="flex justify-between">
+                          <span className="text-dark-400">Ad:</span>
+                          <span className="text-white font-medium">{lead.custom_fields.ad_name || lead.custom_fields.meta_ad_name}</span>
+                        </div>
+                      )}
+                      {(lead.custom_fields.campaign_name || lead.custom_fields.meta_campaign_name) && (
+                        <div className="flex justify-between">
+                          <span className="text-dark-400">Campaign:</span>
+                          <span className="text-white font-medium">{lead.custom_fields.campaign_name || lead.custom_fields.meta_campaign_name}</span>
+                        </div>
+                      )}
+                      {lead.custom_fields.budget && (
+                        <div className="flex justify-between">
+                          <span className="text-dark-400">Budget:</span>
+                          <span className="text-white">{lead.custom_fields.budget.replace(/_/g, ' ')}</span>
+                        </div>
+                      )}
+                      {lead.custom_fields.shipments && (
+                        <div className="flex justify-between">
+                          <span className="text-dark-400">Shipments:</span>
+                          <span className="text-white">{lead.custom_fields.shipments.replace(/_/g, ' ')}</span>
+                        </div>
+                      )}
+                      {lead.custom_fields.why_automate && (
+                        <div className="mt-2 pt-2 border-t border-dark-700/50">
+                          <span className="text-dark-400 block mb-1">Why they want to automate:</span>
+                          <span className="text-white italic">"{lead.custom_fields.why_automate}"</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lead Type */}
+                {lead.lead_type && (
                   <div className="p-4 bg-dark-800/30 rounded-xl">
-                    <h4 className="text-sm font-medium text-dark-400 mb-2">Custom Fields</h4>
+                    <h4 className="text-sm font-medium text-dark-400 mb-2">Lead Type</h4>
+                    <span className={cn(
+                      "badge text-sm",
+                      lead.lead_type === 'consultation' 
+                        ? "bg-accent-500/20 text-accent-300 border border-accent-500/30" 
+                        : "bg-primary-500/20 text-primary-300 border border-primary-500/30"
+                    )}>
+                      {lead.lead_type.charAt(0).toUpperCase() + lead.lead_type.slice(1)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Other Custom Fields */}
+                {lead.custom_fields && Object.keys(lead.custom_fields).filter(k => 
+                  !['ad_name', 'meta_ad_name', 'campaign_name', 'meta_campaign_name', 'budget', 'shipments', 'why_automate', 'imported_from_csv', 'meta_ad_id', 'meta_adset_id', 'meta_adset_name', 'meta_campaign_id', 'campaign_type', 'raw_meta_data'].includes(k)
+                ).length > 0 && (
+                  <div className="p-4 bg-dark-800/30 rounded-xl">
+                    <h4 className="text-sm font-medium text-dark-400 mb-2">Additional Data</h4>
                     <div className="code-block text-xs overflow-auto max-h-40">
-                      {JSON.stringify(lead.custom_fields, null, 2)}
+                      {JSON.stringify(
+                        Object.fromEntries(
+                          Object.entries(lead.custom_fields).filter(([k]) => 
+                            !['ad_name', 'meta_ad_name', 'campaign_name', 'meta_campaign_name', 'budget', 'shipments', 'why_automate', 'imported_from_csv', 'meta_ad_id', 'meta_adset_id', 'meta_adset_name', 'meta_campaign_id', 'campaign_type', 'raw_meta_data'].includes(k)
+                          )
+                        ), 
+                        null, 
+                        2
+                      )}
                     </div>
                   </div>
                 )}

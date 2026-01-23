@@ -18,23 +18,60 @@ import {
   VALUE_EMAILS, 
   CLOSING_EMAILS,
   CALENDAR_LINK, 
+  EBOOK_LINK,
   OPERATIONAL_EMAILS,
   WHATSAPP_MESSAGES,
   EBOOK_EMAILS
 } from '../data/emailTemplates.js';
 
 /**
+ * EBOOK INJECTION FOR FIRST EMAILS
+ * 
+ * CRITICAL: The ebook must ALWAYS be included in the first email sent to any lead.
+ * All leads fill out the same form expecting the ebook, so we must deliver it
+ * regardless of which sequence they're enrolled in.
+ */
+const EBOOK_PARAGRAPH = `Before we go any further, here is something that may be useful: our <b><a href="${EBOOK_LINK}">90-Day Freight Scaling Playbook</a></b>. It was designed for operations leaders running freight businesses who are already handling meaningful volume and are feeling the pressure of manual workflows. Have a read through when you get a chance.`;
+
+/**
+ * Ensure ebook is included in the email body
+ * Checks if ebook link is already present, if not adds it after the greeting
+ */
+function ensureEbookInBody(body) {
+  if (!body) return body;
+  
+  // Check if ebook link is already in the email
+  if (body.includes(EBOOK_LINK) || body.includes('90-Day Freight Scaling Playbook')) {
+    return body; // Already has ebook, don't duplicate
+  }
+  
+  // Insert ebook paragraph after the first greeting line (Hi {{first_name}},)
+  const greetingMatch = body.match(/^(Hi \{\{first_name\}\},?\s*\n\n?)/i);
+  if (greetingMatch) {
+    const greeting = greetingMatch[0];
+    const restOfBody = body.slice(greeting.length);
+    return greeting + EBOOK_PARAGRAPH + '\n\n' + restOfBody;
+  }
+  
+  // If no greeting match, prepend ebook paragraph
+  return EBOOK_PARAGRAPH + '\n\n' + body;
+}
+
+/**
  * Get email content for a specific step based on step name and order
  * Returns { subject, body, whatsapp } or null if no match
+ * 
+ * CRITICAL: Step 1 emails ALWAYS include the ebook (ensured automatically)
  */
 function getTemplateForStep(stepName, stepOrder, sequenceSlug) {
   const name = stepName.toLowerCase();
+  const isFirstStep = stepOrder === 1;
   
   // Welcome / Calendar step (step 1)
   if (name.includes('welcome') || name.includes('calendar')) {
     return {
       subject: OPERATIONAL_EMAILS.welcome_calendar.subject,
-      body: OPERATIONAL_EMAILS.welcome_calendar.body,
+      body: isFirstStep ? ensureEbookInBody(OPERATIONAL_EMAILS.welcome_calendar.body) : OPERATIONAL_EMAILS.welcome_calendar.body,
       whatsapp: WHATSAPP_MESSAGES.welcome
     };
   }
@@ -136,7 +173,7 @@ STRUCTURE Team`
   if (name.includes('ebook delivery')) {
     return {
       subject: EBOOK_EMAILS.ebook_delivery.subject,
-      body: EBOOK_EMAILS.ebook_delivery.body,
+      body: EBOOK_EMAILS.ebook_delivery.body, // Already has ebook link
       whatsapp: EBOOK_EMAILS.ebook_whatsapp
     };
   }
@@ -151,7 +188,20 @@ STRUCTURE Team`
   
   // Ebook value emails (steps 3+) will fall through to use VALUE_EMAILS
   // No match - return null (will fall back to value email)
+  // BUT if it's step 1, we'll add ebook in processMessage
   return null;
+}
+
+/**
+ * Process email body before sending - ensures ebook is in step 1
+ * Called from processMessage and manualSendStep
+ */
+function processEmailBodyForStep(body, stepOrder) {
+  // CRITICAL: Always include ebook in step 1 emails
+  if (stepOrder === 1) {
+    return ensureEbookInBody(body);
+  }
+  return body;
 }
 
 /**
@@ -754,6 +804,11 @@ export async function manualSendStep(leadId, stepId) {
     }
   }
   
+  // CRITICAL: Ensure ebook is ALWAYS in step 1 emails (all leads expect it)
+  if (step.step_order === 1 && emailBody) {
+    emailBody = processEmailBodyForStep(emailBody, step.step_order);
+  }
+  
   // Substitute variables using the shared function (includes HTML formatting)
   const content = substituteVariables({
     subject: emailSubject,
@@ -993,6 +1048,12 @@ async function processMessage(msg) {
       valueEmailId = valueEmail.id;
       console.log(`📧 Using value email "${valueEmail.id}" for lead ${msg.lead_id}`);
     }
+  }
+  
+  // CRITICAL: Ensure ebook is ALWAYS in step 1 emails (all leads expect it)
+  if (stepOrder === 1 && emailBody) {
+    emailBody = processEmailBodyForStep(emailBody, stepOrder);
+    console.log(`📚 Ensured ebook is included in step 1 email`);
   }
   
   // Prepare content with variable substitution

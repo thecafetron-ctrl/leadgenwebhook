@@ -9,7 +9,8 @@
     "start": "node src/index.js",
     "db:migrate": "node src/database/migrate.js",
     "db:seed-emails": "node src/database/seedEmails.js",
-    "db:reset-sequences": "node src/database/resetSequences.js"
+    "db:reset-sequences": "node src/database/resetSequences.js",
+    "db:label-leads": "node src/database/label-existing-leads.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

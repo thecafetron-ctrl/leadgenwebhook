@@ -45,6 +45,7 @@ import leadRoutes from './routes/leads.js';
 import webhookRoutes from './routes/webhooks.js';
 import emailRoutes from './routes/email.js';
 import sequenceRoutes from './routes/sequences.js';
+import evolutionRoutes from './routes/evolution.js';
 
 // Import sequence service for scheduler
 import { processMessageQueue } from './services/sequenceService.js';
@@ -169,6 +170,17 @@ app.get('/api', (req, res) => {
         calcom: 'POST /api/webhooks/calcom',
         test: 'POST /api/webhooks/test',
         simulate: 'POST /api/webhooks/simulate/:type'
+      },
+      evolution: {
+        webhook: 'POST /api/evolution/webhook',
+        conversations: 'GET /api/evolution/conversations',
+        conversationDetail: 'GET /api/evolution/conversations/:id',
+        rescore: 'POST /api/evolution/conversations/:id/rescore',
+        hotLeads: 'GET /api/evolution/hot-leads',
+        analytics: 'GET /api/evolution/analytics',
+        categories: 'GET /api/evolution/categories',
+        checkNumber: 'POST /api/evolution/check-number',
+        setupInfo: 'GET /api/evolution/setup-info'
       }
     },
     documentation: {
@@ -176,6 +188,11 @@ app.get('/api', (req, res) => {
         meta: 'Set up Meta Instant Forms to POST to /api/webhooks/meta',
         calcom: 'Set up Cal.com webhook to POST to /api/webhooks/calcom',
         custom: 'Use /api/webhooks/test for custom integrations'
+      },
+      evolutionIntegration: {
+        setup: 'Configure Evolution API to send webhooks to /api/evolution/webhook',
+        events: 'Enable MESSAGES_UPSERT event in Evolution API webhook settings',
+        note: 'Only messages from numbers in your leads database are tracked and scored'
       }
     }
   });
@@ -186,6 +203,7 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/sequences', sequenceRoutes);
+app.use('/api/evolution', evolutionRoutes);
 
 // ============================================
 // LEGAL PAGES
@@ -455,7 +473,7 @@ async function startServer() {
     console.log('✅ Database migrations complete');
 
     // Initialize services
-    initEmailService();
+    await initEmailService();
     await initWhatsAppService();
     
     // Start message queue scheduler
@@ -480,6 +498,11 @@ async function startServer() {
 ║   • Webhooks:  POST /api/webhooks/meta                     ║
 ║   •            POST /api/webhooks/calcom                   ║
 ║   •            POST /api/webhooks/test                     ║
+║                                                            ║
+║   Evolution API (Chat Intent Scoring):                     ║
+║   • Webhook:   POST /api/evolution/webhook                 ║
+║   • Hot Leads: GET  /api/evolution/hot-leads               ║
+║   • Chats:     GET  /api/evolution/conversations           ║
 ║                                                            ║
 ╚════════════════════════════════════════════════════════════╝
       `);

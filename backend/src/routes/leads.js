@@ -25,6 +25,7 @@ router.get('/', validateQuery(leadQuerySchema), async (req, res) => {
       ...req.query,
       status: req.query.status?.split(','),
       source: req.query.source?.split(','),
+      leadType: req.query.leadType?.split(','),
       tags: req.query.tags?.split(',')
     };
 

@@ -59,16 +59,29 @@
   
   /* Select dropdown styles */
   select.input-field {
-    @apply cursor-pointer appearance-none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    @apply cursor-pointer;
+    background-color: rgb(30 41 59 / 0.5); /* dark-800/50 */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 0.75rem center;
     background-repeat: no-repeat;
     background-size: 1.5em 1.5em;
     padding-right: 2.5rem;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
   }
   
   select.input-field option {
-    @apply bg-dark-800 text-dark-100 py-2;
+    background-color: #1e293b !important; /* dark-800 solid */
+    color: #e2e8f0 !important; /* dark-100 */
+    padding: 0.75rem 1rem;
+  }
+  
+  select.input-field option:hover,
+  select.input-field option:focus,
+  select.input-field option:checked {
+    background-color: #334155 !important; /* dark-700 */
+    color: #ffffff !important;
   }
   
   /* Table styles */

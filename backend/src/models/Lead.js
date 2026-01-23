@@ -132,6 +132,7 @@ export async function getLeads(options = {}) {
     status = null,
     source = null,
     priority = null,
+    leadType = null,
     dateFrom = null,
     dateTo = null
   } = options;
@@ -184,6 +185,16 @@ export async function getLeads(options = {}) {
     paramIndex++;
   }
 
+  // Lead type filter
+  if (leadType) {
+    const leadTypes = Array.isArray(leadType) ? leadType : [leadType];
+    const placeholders = leadTypes.map((_, i) => `$${paramIndex + i}`).join(',');
+    sql += ` AND lead_type IN (${placeholders})`;
+    countSql += ` AND lead_type IN (${placeholders})`;
+    params.push(...leadTypes);
+    paramIndex += leadTypes.length;
+  }
+
   // Date filters
   if (dateFrom) {
     sql += ` AND created_at >= $${paramIndex}`;
@@ -203,7 +214,7 @@ export async function getLeads(options = {}) {
   const totalCount = parseInt(countResult.rows[0].count);
 
   // Add sorting - handle score specially to put high scores first
-  const validSortColumns = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'status', 'source', 'score', 'priority'];
+  const validSortColumns = ['created_at', 'updated_at', 'first_name', 'last_name', 'email', 'status', 'source', 'score', 'priority', 'lead_type'];
   const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   
