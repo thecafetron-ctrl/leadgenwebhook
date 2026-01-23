@@ -13,6 +13,9 @@ import { query } from '../database/connection.js';
 import OpenAI from 'openai';
 import { INTENT_CATEGORIES, INTENT_SCORE_RANGES } from '../database/schema-chat-intent.js';
 
+// Re-export intent constants as named exports for route imports
+export { INTENT_CATEGORIES, INTENT_SCORE_RANGES };
+
 // Initialize OpenAI
 let openai = null;
 function getOpenAI() {
