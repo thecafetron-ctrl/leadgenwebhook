@@ -137,10 +137,61 @@ export const leadsApi = {
   },
 
   /**
-   * Re-score ALL leads
+   * Re-score ALL leads (legacy non-streaming)
    */
   rescoreAllLeads: async () => {
     return api.post('/leads/rescore-all');
+  },
+
+  /**
+   * Re-score ALL leads with streaming progress
+   * @param {Function} onProgress - Called for each lead scored
+   * @param {Function} onComplete - Called when all leads are scored
+   * @param {Function} onError - Called on error
+   * @returns {Function} - Cleanup function to abort
+   */
+  rescoreAllLeadsStream: (onProgress, onComplete, onError) => {
+    const baseURL = import.meta.env.VITE_API_URL || '/api';
+    const eventSource = new EventSource(`${baseURL}/leads/rescore-stream`);
+    
+    eventSource.addEventListener('start', (e) => {
+      const data = JSON.parse(e.data);
+      onProgress({ type: 'start', ...data });
+    });
+    
+    eventSource.addEventListener('progress', (e) => {
+      const data = JSON.parse(e.data);
+      onProgress({ type: 'progress', ...data });
+    });
+    
+    eventSource.addEventListener('complete', (e) => {
+      const data = JSON.parse(e.data);
+      eventSource.close();
+      onComplete(data);
+    });
+    
+    eventSource.addEventListener('error', (e) => {
+      if (e.data) {
+        const data = JSON.parse(e.data);
+        if (data.fatal) {
+          eventSource.close();
+          onError(new Error(data.message));
+        } else {
+          onProgress({ type: 'error', ...data });
+        }
+      } else {
+        eventSource.close();
+        onError(new Error('Connection lost'));
+      }
+    });
+    
+    eventSource.onerror = () => {
+      eventSource.close();
+      onError(new Error('Connection lost'));
+    };
+    
+    // Return cleanup function
+    return () => eventSource.close();
   },
 
   /**

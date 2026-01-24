@@ -358,6 +358,83 @@ router.post('/rescore-all', async (req, res) => {
 });
 
 /**
+ * GET /api/leads/rescore-stream
+ * Stream progressive scoring updates via Server-Sent Events
+ * Scores leads one at a time with real-time progress
+ */
+router.get('/rescore-stream', async (req, res) => {
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    // Get all leads to score
+    const result = await query('SELECT * FROM leads ORDER BY created_at DESC');
+    const leads = result.rows;
+    const total = leads.length;
+
+    sendEvent('start', { total, message: `Starting to score ${total} leads...` });
+
+    const results = [];
+    
+    for (let i = 0; i < leads.length; i++) {
+      const lead = leads[i];
+      
+      try {
+        // Score this lead
+        const scoreResult = await scoreLead(lead.id);
+        results.push(scoreResult);
+        
+        // Send progress update
+        sendEvent('progress', {
+          current: i + 1,
+          total,
+          percentage: Math.round(((i + 1) / total) * 100),
+          lead: {
+            id: lead.id,
+            name: `${lead.first_name || ''} ${lead.last_name || ''}`.trim(),
+            score: scoreResult.score,
+            intentCategory: scoreResult.intentCategory || scoreResult.intent_category,
+            priority: scoreResult.priority
+          }
+        });
+      } catch (err) {
+        console.error(`Error scoring lead ${lead.id}:`, err);
+        sendEvent('error', {
+          current: i + 1,
+          total,
+          leadId: lead.id,
+          error: err.message
+        });
+      }
+      
+      // Small delay to prevent rate limiting and allow UI to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    sendEvent('complete', {
+      total: results.length,
+      message: `Finished scoring ${results.length} leads`,
+      results
+    });
+
+  } catch (error) {
+    console.error('Error in rescore stream:', error);
+    sendEvent('error', { message: error.message, fatal: true });
+  } finally {
+    res.end();
+  }
+});
+
+/**
  * POST /api/leads/manual-send
  * Send manual message to selected leads
  */

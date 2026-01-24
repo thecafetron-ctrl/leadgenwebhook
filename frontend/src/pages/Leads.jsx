@@ -252,7 +252,7 @@ function Leads() {
     }
   });
 
-  // Rescore all leads mutation
+  // Rescore all leads mutation (legacy fallback)
   const rescoreAllMutation = useMutation({
     mutationFn: () => leadsApi.rescoreAllLeads(),
     onSuccess: (data) => {
@@ -263,6 +263,68 @@ function Leads() {
       toast.error(error.message || 'Failed to rescore leads');
     }
   });
+
+  // Streaming score all state
+  const [scoringProgress, setScoringProgress] = useState({
+    active: false,
+    current: 0,
+    total: 0,
+    percentage: 0,
+    currentLead: null,
+    results: []
+  });
+
+  const startStreamingScore = () => {
+    setScoringProgress({
+      active: true,
+      current: 0,
+      total: 0,
+      percentage: 0,
+      currentLead: null,
+      results: []
+    });
+
+    const cleanup = leadsApi.rescoreAllLeadsStream(
+      // onProgress
+      (data) => {
+        if (data.type === 'start') {
+          setScoringProgress(prev => ({ ...prev, total: data.total }));
+        } else if (data.type === 'progress') {
+          setScoringProgress(prev => ({
+            ...prev,
+            current: data.current,
+            percentage: data.percentage,
+            currentLead: data.lead,
+            results: [...prev.results, data.lead]
+          }));
+        }
+      },
+      // onComplete
+      (data) => {
+        setScoringProgress(prev => ({ ...prev, active: false, percentage: 100 }));
+        toast.success(`Scored ${data.total} leads!`);
+        queryClient.invalidateQueries(['leads']);
+      },
+      // onError
+      (error) => {
+        setScoringProgress(prev => ({ ...prev, active: false }));
+        toast.error(error.message || 'Scoring failed');
+      }
+    );
+
+    // Store cleanup function for potential abort
+    window.__scoringCleanup = cleanup;
+  };
+
+  const stopStreamingScore = () => {
+    if (window.__scoringCleanup) {
+      window.__scoringCleanup();
+      window.__scoringCleanup = null;
+    }
+    setScoringProgress(prev => ({ ...prev, active: false }));
+    toast('Scoring stopped');
+    queryClient.invalidateQueries(['leads']);
+  };
 
   // Manual send state
   const [showManualSend, setShowManualSend] = useState(false);
@@ -344,15 +406,26 @@ function Leads() {
         </div>
         
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => rescoreAllMutation.mutate()}
-            disabled={rescoreAllMutation.isLoading || scoreAllMutation.isLoading}
-            className="px-4 py-2 rounded-xl bg-accent-500/20 border border-accent-500/50 text-accent-300 hover:bg-accent-500/30 transition-all flex items-center gap-2"
-            title="Re-score all leads with proper logic"
-          >
-            <Sparkles className="w-4 h-4" />
-            {rescoreAllMutation.isLoading ? 'Scoring...' : 'Score All'}
-          </button>
+          {scoringProgress.active ? (
+            <button
+              onClick={stopStreamingScore}
+              className="px-4 py-2 rounded-xl bg-danger-500/20 border border-danger-500/50 text-danger-300 hover:bg-danger-500/30 transition-all flex items-center gap-2"
+              title="Stop scoring"
+            >
+              <Pause className="w-4 h-4" />
+              Stop ({scoringProgress.current}/{scoringProgress.total})
+            </button>
+          ) : (
+            <button
+              onClick={startStreamingScore}
+              disabled={rescoreAllMutation.isLoading || scoreAllMutation.isLoading}
+              className="px-4 py-2 rounded-xl bg-accent-500/20 border border-accent-500/50 text-accent-300 hover:bg-accent-500/30 transition-all flex items-center gap-2"
+              title="Re-score all leads with AI (one at a time)"
+            >
+              <Sparkles className="w-4 h-4" />
+              Score All
+            </button>
+          )}
           <button
             onClick={() => setShowManualSend(true)}
             disabled={selectedLeads.length === 0}
@@ -383,6 +456,57 @@ function Leads() {
           </button>
         </div>
       </div>
+
+      {/* Scoring Progress Bar */}
+      <AnimatePresence>
+        {scoringProgress.active && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="glass-card p-4 border-l-4 border-accent-500"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-accent-400 animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">Scoring leads with AI...</p>
+                  <p className="text-dark-400 text-sm">
+                    {scoringProgress.currentLead ? (
+                      <>
+                        Just scored: <span className="text-white">{scoringProgress.currentLead.name}</span>
+                        {' → '}
+                        <span className={cn(
+                          "font-mono",
+                          scoringProgress.currentLead.score >= 75 ? "text-success-400" :
+                          scoringProgress.currentLead.score >= 50 ? "text-warning-400" :
+                          "text-dark-300"
+                        )}>
+                          {scoringProgress.currentLead.score}/100
+                        </span>
+                      </>
+                    ) : 'Starting...'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-white font-mono text-lg">{scoringProgress.percentage}%</p>
+                <p className="text-dark-400 text-sm">{scoringProgress.current} of {scoringProgress.total}</p>
+              </div>
+            </div>
+            <div className="h-2 bg-dark-800 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-accent-500 to-primary-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${scoringProgress.percentage}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Search & Filter Bar */}
       <div className="glass-card p-4">

@@ -196,22 +196,40 @@ async function aiScoreLeadInternal(lead) {
   const signals = getNormalizedSignals(lead);
   const leadType = lead.lead_type || cf.campaign_type || null;
 
-  const prompt = `You are an expert lead qualifier for STRUCTURE (logistics automation for freight forwarders/logistics).
+  const prompt = `You are an expert lead qualifier for STRUCTURE (logistics automation for freight forwarders/logistics in UAE/Dubai).
 
 Your job: score BUYING INTENT from 0-100 and classify intent.
 
+BUDGET CALIBRATION (AED - this is CRITICAL):
+- 35,000 AED or below = LOW budget (score penalty, max 40 points for budget factor)
+- 35,001 - 99,999 AED = MEDIUM budget (decent but not exciting)
+- 100,000 - 299,999 AED = GOOD budget (this is where real buyers start)
+- 300,000 - 599,999 AED = HIGH budget (serious buyer)
+- 600,000 - 999,999 AED = VERY HIGH budget (priority lead)
+- 1,000,000+ AED = PREMIUM budget (VIP treatment)
+
+SHIPMENT VOLUME CALIBRATION:
+- Under 500/month = Small operation
+- 500-1,000/month = Medium operation  
+- 1,000-5,000/month = Good volume
+- 5,000-10,000/month = High volume (serious)
+- 10,000+/month = Enterprise volume (priority)
+
 IMPORTANT RULES:
-- Ebook leads usually have LOWER intent because they want something free. Apply a *default penalty* for ebook leads, BUT override it if strong buying signals exist (high budget, high volume, decision-maker, clear pain, booking intent, realistic company).
+- Ebook leads usually have LOWER intent because they want something free. Apply a *default penalty* for ebook leads (-15 to -25 points), BUT override it if strong buying signals exist (high budget ≥300k, high volume ≥5000, decision-maker, clear pain, booking intent, realistic company).
 - Detect fake/low-quality leads: gibberish names, suspicious email typos, job-seeker answers, inconsistent fields, nonsense text, random characters.
-- Use budget + shipment volume as major factors. Decision-maker is also major.
+- Budget + shipment volume are the PRIMARY factors (60% weight). Decision-maker is also major (15% weight).
 - If data is missing, do not guess aggressively; lower confidence.
-- Scoring anchors (use these to calibrate):
-  - 0-15 = junk/trash/fake/job-seeker
-  - 20-35 = low
-  - 40-59 = medium
-  - 60-79 = warm
-  - 80-94 = hot
-  - 95-100 = PERFECT (real company + decision-maker + very high budget/volume + clear buying intent). 100 is allowed.
+- A 35k AED budget is OBJECTIVELY LOW for enterprise automation - do NOT score it highly.
+
+Scoring anchors (use these to calibrate):
+  - 0-15 = junk/trash/fake/job-seeker/spam
+  - 16-30 = very low (ebook hunters, tiny budget, no real intent)
+  - 31-45 = low (35k budget range, small volume, no urgency)
+  - 46-59 = medium (decent signals but missing key factors)
+  - 60-74 = warm (good budget 100k+, decent volume, some intent)
+  - 75-89 = hot (high budget 300k+, high volume, decision-maker)
+  - 90-100 = PERFECT (600k+ budget, 5000+ shipments, decision-maker, business email, clear pain). 100 IS allowed for truly perfect leads.
 
 Return ONLY valid JSON with this exact schema:
 {
@@ -290,13 +308,21 @@ function postProcessAiScore(lead, aiResult) {
     score = Math.min(score, 45);
   }
 
-  // Ebook default cap unless strong signals
+  // Ebook default cap unless strong signals (300k+ budget or 5000+ shipments)
   const strongSignals =
-    (signals.budgetMin != null && signals.budgetMin >= 100000) ||
-    (signals.shipMin != null && signals.shipMin >= 1000) ||
-    signals.dm === true;
+    (signals.budgetMin != null && signals.budgetMin >= 300000) ||
+    (signals.shipMin != null && signals.shipMin >= 5000) ||
+    (signals.dm === true && signals.budgetMin != null && signals.budgetMin >= 100000);
   if ((leadType === 'ebook' || flags.ebook_hunter) && !strongSignals) {
-    score = Math.min(score, 55);
+    score = Math.min(score, 50);
+  }
+
+  // Hard cap for truly low budget (35k and below) - these are NOT high-value leads
+  if (signals.budgetMax != null && signals.budgetMax <= 35000) {
+    score = Math.min(score, 45);
+  }
+  if (signals.budgetMax != null && signals.budgetMax <= 100000 && signals.budgetMax > 35000) {
+    score = Math.min(score, 60);
   }
 
   // Floors for very strong / "perfect" profiles (allows reaching 100)
@@ -305,14 +331,21 @@ function postProcessAiScore(lead, aiResult) {
   const consultationLike = leadType === 'consultation' || leadType === null;
 
   if (consultationLike && signals.dm === true && !flags.likely_fake && !flags.job_seeker) {
+    // 300k+ budget and 1000+ shipments = warm
+    if ((signals.budgetMin != null && signals.budgetMin >= 300000) && (signals.shipMin != null && signals.shipMin >= 1000)) {
+      score = Math.max(score, 75);
+    }
+    // 600k+ budget and 5000+ shipments = hot
     if ((signals.budgetMin != null && signals.budgetMin >= 600000) && (signals.shipMin != null && signals.shipMin >= 5000)) {
       score = Math.max(score, 90);
     }
+    // 1M+ budget and 10000+ shipments = near perfect
     if ((signals.budgetMin != null && signals.budgetMin >= 1000000) && (signals.shipMin != null && signals.shipMin >= 10000)) {
       score = Math.max(score, 95);
     }
+    // All signals aligned = allow 100
     if (hasBusinessDomain && lead.company && hasWhy && score >= 95) {
-      score = Math.max(score, 97);
+      score = Math.max(score, 98);
     }
   }
 
