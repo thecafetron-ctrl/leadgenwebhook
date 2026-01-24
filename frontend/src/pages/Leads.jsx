@@ -65,12 +65,13 @@ const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const LEAD_TYPES = ['consultation', 'ebook'];
+// Budget buckets (AED) — treating <100k as low
 const BUDGET_OPTIONS = [
-  { label: '35k', value: 35000 },
   { label: '100k', value: 100000 },
   { label: '300k', value: 300000 },
   { label: '600k', value: 600000 },
-  { label: '1m', value: 1000000 }
+  { label: '1m', value: 1000000 },
+  { label: '2m', value: 2000000 }
 ];
 const SHIPMENTS_OPTIONS = [
   { label: '500', value: 500 },

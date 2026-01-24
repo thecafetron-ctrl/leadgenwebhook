@@ -394,7 +394,18 @@ app.get('/terms', (req, res) => {
 
 // Serve frontend static files in production
 if (!isDev && fs.existsSync(FRONTEND_DIST)) {
-  app.use(express.static(FRONTEND_DIST));
+  // Cache strategy:
+  // - index.html: no-store (always revalidate so users see newest frontend)
+  // - /assets/*: long cache (Vite outputs hashed filenames)
+  app.use(express.static(FRONTEND_DIST, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-store');
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`) || filePath.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    }
+  }));
   
   // SPA fallback - serve index.html for all non-API routes
   app.get('*', (req, res, next) => {
@@ -402,11 +413,31 @@ if (!isDev && fs.existsSync(FRONTEND_DIST)) {
     if (req.path.startsWith('/api')) {
       return next();
     }
+    res.setHeader('Cache-Control', 'no-store');
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
   });
   
   console.log('✅ Serving frontend from:', FRONTEND_DIST);
 }
+
+// Debug endpoint: confirm what frontend build is on this server
+app.get('/api/debug/frontend-build', (req, res) => {
+  try {
+    const indexPath = path.join(FRONTEND_DIST, 'index.html');
+    const exists = fs.existsSync(indexPath);
+    const stat = exists ? fs.statSync(indexPath) : null;
+    res.json({
+      success: true,
+      isDev,
+      frontendDist: FRONTEND_DIST,
+      indexHtmlExists: exists,
+      indexHtmlMtime: stat ? stat.mtime.toISOString() : null,
+      indexHtmlSize: stat ? stat.size : null
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 // ============================================
 // ERROR HANDLING
