@@ -56,6 +56,9 @@ export const leadQuerySchema = z.object({
   source: z.string().optional(),
   leadType: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  scoreMin: z.coerce.number().min(0).max(100).optional(),
+  scoreMax: z.coerce.number().min(0).max(100).optional(),
+  intentCategory: z.string().optional(), // hot|warm|medium|low|junk (stored in custom_fields.ai_intent_category)
   budgetMin: z.coerce.number().optional(),
   budgetMax: z.coerce.number().optional(),
   shipmentsMin: z.coerce.number().optional(),

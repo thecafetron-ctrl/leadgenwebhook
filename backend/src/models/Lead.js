@@ -134,6 +134,9 @@ export async function getLeads(options = {}) {
     source = null,
     priority = null,
     leadType = null,
+    scoreMin = null,
+    scoreMax = null,
+    intentCategory = null,
     budgetMin = null,
     budgetMax = null,
     shipmentsMin = null,
@@ -199,6 +202,28 @@ export async function getLeads(options = {}) {
     countSql += ` AND lead_type IN (${placeholders})`;
     params.push(...leadTypes);
     paramIndex += leadTypes.length;
+  }
+
+  // Score filters (0-100). Note: score is the latest AI intent score once scored.
+  if (scoreMin !== null && scoreMin !== undefined && scoreMin !== '') {
+    sql += ` AND COALESCE(score, 0) >= $${paramIndex}`;
+    countSql += ` AND COALESCE(score, 0) >= $${paramIndex}`;
+    params.push(parseInt(scoreMin, 10));
+    paramIndex++;
+  }
+  if (scoreMax !== null && scoreMax !== undefined && scoreMax !== '') {
+    sql += ` AND COALESCE(score, 0) <= $${paramIndex}`;
+    countSql += ` AND COALESCE(score, 0) <= $${paramIndex}`;
+    params.push(parseInt(scoreMax, 10));
+    paramIndex++;
+  }
+
+  // Intent category filter (stored in custom_fields.ai_intent_category)
+  if (intentCategory !== null && intentCategory !== undefined && intentCategory !== '') {
+    sql += ` AND LOWER(COALESCE(custom_fields->>'ai_intent_category','')) = LOWER($${paramIndex})`;
+    countSql += ` AND LOWER(COALESCE(custom_fields->>'ai_intent_category','')) = LOWER($${paramIndex})`;
+    params.push(String(intentCategory));
+    paramIndex++;
   }
 
   // Budget filters (expects normalized custom_fields keys)

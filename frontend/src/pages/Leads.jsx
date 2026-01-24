@@ -78,6 +78,8 @@ const SHIPMENTS_OPTIONS = [
   { label: '5,000', value: 5000 },
   { label: '15,000', value: 15000 }
 ];
+const INTENT_CATEGORIES = ['', 'hot', 'warm', 'medium', 'low', 'junk'];
+const SCORE_OPTIONS = ['', 0, 20, 40, 60, 80, 90, 100];
 
 // Helper for lead type badge styling
 const getLeadTypeColor = (type) => {
@@ -141,6 +143,9 @@ function Leads() {
       status: leadFilters.status.join(','),
       source: leadFilters.source.join(','),
       leadType: leadFilters.leadType?.join(',') || '',
+      intentCategory: leadFilters.intentCategory,
+      scoreMin: leadFilters.scoreMin,
+      scoreMax: leadFilters.scoreMax,
       budgetMin: leadFilters.budgetMin,
       budgetMax: leadFilters.budgetMax,
       shipmentsMin: leadFilters.shipmentsMin,
@@ -313,6 +318,9 @@ function Leads() {
     leadFilters.status.length,
     leadFilters.source.length,
     leadFilters.leadType?.length || 0,
+    leadFilters.intentCategory ? 1 : 0,
+    leadFilters.scoreMin !== '' ? 1 : 0,
+    leadFilters.scoreMax !== '' ? 1 : 0,
     leadFilters.budgetMin ? 1 : 0,
     leadFilters.budgetMax ? 1 : 0,
     leadFilters.shipmentsMin ? 1 : 0,
@@ -581,6 +589,51 @@ function Leads() {
                     <option value="true" className="bg-dark-800 text-white">Yes</option>
                     <option value="false" className="bg-dark-800 text-white">No</option>
                   </select>
+                </div>
+
+                {/* Intent Category Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Intent</label>
+                  <select
+                    value={leadFilters.intentCategory}
+                    onChange={(e) => setLeadFilters({ intentCategory: e.target.value })}
+                    className="input-field"
+                  >
+                    {INTENT_CATEGORIES.map((c) => (
+                      <option key={c || 'all'} value={c} className="bg-dark-800 text-white">
+                        {c ? c.toUpperCase() : 'All'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Score Range Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Score</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={leadFilters.scoreMin}
+                      onChange={(e) => setLeadFilters({ scoreMin: e.target.value })}
+                      className="input-field"
+                    >
+                      {SCORE_OPTIONS.map((v) => (
+                        <option key={`min-${v}`} value={v} className="bg-dark-800 text-white">
+                          {v === '' ? 'Min' : v}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={leadFilters.scoreMax}
+                      onChange={(e) => setLeadFilters({ scoreMax: e.target.value })}
+                      className="input-field"
+                    >
+                      {SCORE_OPTIONS.map((v) => (
+                        <option key={`max-${v}`} value={v} className="bg-dark-800 text-white">
+                          {v === '' ? 'Max' : v}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Date Range */}

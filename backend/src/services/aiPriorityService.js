@@ -205,6 +205,13 @@ IMPORTANT RULES:
 - Detect fake/low-quality leads: gibberish names, suspicious email typos, job-seeker answers, inconsistent fields, nonsense text, random characters.
 - Use budget + shipment volume as major factors. Decision-maker is also major.
 - If data is missing, do not guess aggressively; lower confidence.
+- Scoring anchors (use these to calibrate):
+  - 0-15 = junk/trash/fake/job-seeker
+  - 20-35 = low
+  - 40-59 = medium
+  - 60-79 = warm
+  - 80-94 = hot
+  - 95-100 = PERFECT (real company + decision-maker + very high budget/volume + clear buying intent). 100 is allowed.
 
 Return ONLY valid JSON with this exact schema:
 {
@@ -264,6 +271,57 @@ LEAD:
     flags: parsed.flags || {},
     top_reasons: Array.isArray(parsed.top_reasons) ? parsed.top_reasons.slice(0, 6) : [],
     recommended_next_step: parsed.recommended_next_step || 'Follow up with a short qualifying message.'
+  };
+}
+
+function postProcessAiScore(lead, aiResult) {
+  const cf = lead.custom_fields || {};
+  const signals = getNormalizedSignals(lead);
+  const leadType = lead.lead_type || cf.campaign_type || null;
+  const flags = aiResult.flags || {};
+
+  let score = aiResult.score;
+
+  // Hard caps for junk / fake
+  if (flags.likely_fake || flags.job_seeker) {
+    score = Math.min(score, 20);
+  }
+  if (flags.bad_contact_info) {
+    score = Math.min(score, 45);
+  }
+
+  // Ebook default cap unless strong signals
+  const strongSignals =
+    (signals.budgetMin != null && signals.budgetMin >= 100000) ||
+    (signals.shipMin != null && signals.shipMin >= 1000) ||
+    signals.dm === true;
+  if ((leadType === 'ebook' || flags.ebook_hunter) && !strongSignals) {
+    score = Math.min(score, 55);
+  }
+
+  // Floors for very strong / "perfect" profiles (allows reaching 100)
+  const hasBusinessDomain = !!extractCompanyDomain(lead.email);
+  const hasWhy = typeof signals.why === 'string' && signals.why.trim().length >= 15;
+  const consultationLike = leadType === 'consultation' || leadType === null;
+
+  if (consultationLike && signals.dm === true && !flags.likely_fake && !flags.job_seeker) {
+    if ((signals.budgetMin != null && signals.budgetMin >= 600000) && (signals.shipMin != null && signals.shipMin >= 5000)) {
+      score = Math.max(score, 90);
+    }
+    if ((signals.budgetMin != null && signals.budgetMin >= 1000000) && (signals.shipMin != null && signals.shipMin >= 10000)) {
+      score = Math.max(score, 95);
+    }
+    if (hasBusinessDomain && lead.company && hasWhy && score >= 95) {
+      score = Math.max(score, 97);
+    }
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  return {
+    ...aiResult,
+    score,
+    priority: derivePriorityFromScore(score)
   };
 }
 
@@ -410,7 +468,8 @@ export async function scoreLead(leadId) {
   
   // AI scoring (preferred)
   if (openai) {
-    const aiResult = await aiScoreLeadInternal(lead);
+    const rawAi = await aiScoreLeadInternal(lead);
+    const aiResult = postProcessAiScore(lead, rawAi);
     await persistAiScore(leadId, aiResult);
     return {
       leadId,
@@ -443,7 +502,8 @@ export async function scoreAllLeads() {
   
   for (const lead of leads) {
     if (openai) {
-      const aiResult = await aiScoreLeadInternal(lead);
+      const rawAi = await aiScoreLeadInternal(lead);
+      const aiResult = postProcessAiScore(lead, rawAi);
       await persistAiScore(lead.id, aiResult);
       results.push({ id: lead.id, name: `${lead.first_name} ${lead.last_name}`.trim(), score: aiResult.score, intentCategory: aiResult.intent_category });
     } else {
@@ -468,7 +528,8 @@ export async function rescoreAllLeads() {
   
   for (const lead of leads) {
     if (openai) {
-      const aiResult = await aiScoreLeadInternal(lead);
+      const rawAi = await aiScoreLeadInternal(lead);
+      const aiResult = postProcessAiScore(lead, rawAi);
       await persistAiScore(lead.id, aiResult);
       results.push({ id: lead.id, name: `${lead.first_name} ${lead.last_name}`.trim(), score: aiResult.score, intentCategory: aiResult.intent_category });
     } else {

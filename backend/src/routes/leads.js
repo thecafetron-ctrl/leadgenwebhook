@@ -32,7 +32,11 @@ router.get('/', validateQuery(leadQuerySchema), async (req, res) => {
       budgetMax: req.query.budgetMax,
       shipmentsMin: req.query.shipmentsMin,
       shipmentsMax: req.query.shipmentsMax,
-      decisionMaker: req.query.decisionMaker
+      decisionMaker: req.query.decisionMaker,
+      // intent filters
+      scoreMin: req.query.scoreMin,
+      scoreMax: req.query.scoreMax,
+      intentCategory: req.query.intentCategory
     };
 
     const result = await Lead.getLeads(options);
