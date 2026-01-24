@@ -26,7 +26,13 @@ router.get('/', validateQuery(leadQuerySchema), async (req, res) => {
       status: req.query.status?.split(','),
       source: req.query.source?.split(','),
       leadType: req.query.leadType?.split(','),
-      tags: req.query.tags?.split(',')
+      tags: req.query.tags?.split(','),
+      // normalized enrichment filters
+      budgetMin: req.query.budgetMin,
+      budgetMax: req.query.budgetMax,
+      shipmentsMin: req.query.shipmentsMin,
+      shipmentsMax: req.query.shipmentsMax,
+      decisionMaker: req.query.decisionMaker
     };
 
     const result = await Lead.getLeads(options);

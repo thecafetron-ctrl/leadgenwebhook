@@ -40,6 +40,7 @@ export async function createLead(leadData) {
     source = 'manual',
     source_id = null,
     campaign_id = null,
+    lead_type = null,
     utm_source = null,
     utm_medium = null,
     utm_campaign = null,
@@ -61,17 +62,17 @@ export async function createLead(leadData) {
   const sql = `
     INSERT INTO leads (
       id, first_name, last_name, email, phone, company, job_title,
-      source, source_id, campaign_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+      source, source_id, campaign_id, lead_type, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
       status, score, priority, tags, custom_fields, notes, assigned_to,
       email_consent, sms_consent, whatsapp_consent, consent_timestamp, gdpr_consent,
       created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
     RETURNING *
   `;
 
   const result = await query(sql, [
     id, first_name, last_name, email, phone, company, job_title,
-    source, source_id, campaign_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+    source, source_id, campaign_id, lead_type, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
     status, score, priority, 
     JSON.stringify(tags), 
     JSON.stringify(custom_fields), 
@@ -133,6 +134,11 @@ export async function getLeads(options = {}) {
     source = null,
     priority = null,
     leadType = null,
+    budgetMin = null,
+    budgetMax = null,
+    shipmentsMin = null,
+    shipmentsMax = null,
+    decisionMaker = null,
     dateFrom = null,
     dateTo = null
   } = options;
@@ -193,6 +199,45 @@ export async function getLeads(options = {}) {
     countSql += ` AND lead_type IN (${placeholders})`;
     params.push(...leadTypes);
     paramIndex += leadTypes.length;
+  }
+
+  // Budget filters (expects normalized custom_fields keys)
+  if (budgetMin !== null && budgetMin !== undefined && budgetMin !== '') {
+    sql += ` AND (custom_fields->>'estimated_budget_aed_min')::int >= $${paramIndex}`;
+    countSql += ` AND (custom_fields->>'estimated_budget_aed_min')::int >= $${paramIndex}`;
+    params.push(parseInt(budgetMin, 10));
+    paramIndex++;
+  }
+  if (budgetMax !== null && budgetMax !== undefined && budgetMax !== '') {
+    sql += ` AND (custom_fields->>'estimated_budget_aed_max')::int <= $${paramIndex}`;
+    countSql += ` AND (custom_fields->>'estimated_budget_aed_max')::int <= $${paramIndex}`;
+    params.push(parseInt(budgetMax, 10));
+    paramIndex++;
+  }
+
+  // Shipments filters (expects normalized custom_fields keys)
+  if (shipmentsMin !== null && shipmentsMin !== undefined && shipmentsMin !== '') {
+    sql += ` AND (custom_fields->>'shipments_per_month_min')::int >= $${paramIndex}`;
+    countSql += ` AND (custom_fields->>'shipments_per_month_min')::int >= $${paramIndex}`;
+    params.push(parseInt(shipmentsMin, 10));
+    paramIndex++;
+  }
+  if (shipmentsMax !== null && shipmentsMax !== undefined && shipmentsMax !== '') {
+    sql += ` AND (custom_fields->>'shipments_per_month_max')::int <= $${paramIndex}`;
+    countSql += ` AND (custom_fields->>'shipments_per_month_max')::int <= $${paramIndex}`;
+    params.push(parseInt(shipmentsMax, 10));
+    paramIndex++;
+  }
+
+  // Decision maker filter (expects normalized custom_fields key decision_maker boolean)
+  if (decisionMaker !== null && decisionMaker !== undefined && decisionMaker !== '') {
+    const want = String(decisionMaker).toLowerCase();
+    if (want === 'true' || want === 'false') {
+      sql += ` AND (custom_fields->>'decision_maker')::boolean = $${paramIndex}`;
+      countSql += ` AND (custom_fields->>'decision_maker')::boolean = $${paramIndex}`;
+      params.push(want === 'true');
+      paramIndex++;
+    }
   }
 
   // Date filters
@@ -258,7 +303,8 @@ export async function updateLead(id, updates) {
     'first_name', 'last_name', 'email', 'phone', 'company', 'job_title',
     'status', 'score', 'priority', 'tags', 'custom_fields', 'notes', 'assigned_to',
     'email_consent', 'sms_consent', 'whatsapp_consent', 'gdpr_consent',
-    'meeting_status'  // For tracking attended/no-show
+    'meeting_status',  // For tracking attended/no-show
+    'lead_type'        // ebook / consultation labels
   ];
 
   const setClauses = [];

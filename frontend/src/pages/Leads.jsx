@@ -65,6 +65,19 @@ const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const LEAD_TYPES = ['consultation', 'ebook'];
+const BUDGET_OPTIONS = [
+  { label: '35k', value: 35000 },
+  { label: '100k', value: 100000 },
+  { label: '300k', value: 300000 },
+  { label: '600k', value: 600000 },
+  { label: '1m', value: 1000000 }
+];
+const SHIPMENTS_OPTIONS = [
+  { label: '500', value: 500 },
+  { label: '1,000', value: 1000 },
+  { label: '5,000', value: 5000 },
+  { label: '15,000', value: 15000 }
+];
 
 // Helper for lead type badge styling
 const getLeadTypeColor = (type) => {
@@ -126,6 +139,11 @@ function Leads() {
       status: leadFilters.status.join(','),
       source: leadFilters.source.join(','),
       leadType: leadFilters.leadType?.join(',') || '',
+      budgetMin: leadFilters.budgetMin,
+      budgetMax: leadFilters.budgetMax,
+      shipmentsMin: leadFilters.shipmentsMin,
+      shipmentsMax: leadFilters.shipmentsMax,
+      decisionMaker: leadFilters.decisionMaker,
       priority: leadFilters.priority,
       dateFrom: leadFilters.dateFrom,
       dateTo: leadFilters.dateTo
@@ -286,6 +304,11 @@ function Leads() {
     leadFilters.status.length,
     leadFilters.source.length,
     leadFilters.leadType?.length || 0,
+    leadFilters.budgetMin ? 1 : 0,
+    leadFilters.budgetMax ? 1 : 0,
+    leadFilters.shipmentsMin ? 1 : 0,
+    leadFilters.shipmentsMax ? 1 : 0,
+    leadFilters.decisionMaker ? 1 : 0,
     leadFilters.priority ? 1 : 0,
     leadFilters.dateFrom ? 1 : 0,
     leadFilters.dateTo ? 1 : 0
@@ -481,6 +504,74 @@ function Leads() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Budget Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Budget (AED)</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={leadFilters.budgetMin}
+                      onChange={(e) => setLeadFilters({ budgetMin: e.target.value })}
+                      className="input-field"
+                    >
+                      <option value="" className="bg-dark-800 text-white">Min</option>
+                      {BUDGET_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value} className="bg-dark-800 text-white">{o.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={leadFilters.budgetMax}
+                      onChange={(e) => setLeadFilters({ budgetMax: e.target.value })}
+                      className="input-field"
+                    >
+                      <option value="" className="bg-dark-800 text-white">Max</option>
+                      {BUDGET_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value} className="bg-dark-800 text-white">{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Shipments Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Shipments / Month</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={leadFilters.shipmentsMin}
+                      onChange={(e) => setLeadFilters({ shipmentsMin: e.target.value })}
+                      className="input-field"
+                    >
+                      <option value="" className="bg-dark-800 text-white">Min</option>
+                      {SHIPMENTS_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value} className="bg-dark-800 text-white">{o.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={leadFilters.shipmentsMax}
+                      onChange={(e) => setLeadFilters({ shipmentsMax: e.target.value })}
+                      className="input-field"
+                    >
+                      <option value="" className="bg-dark-800 text-white">Max</option>
+                      {SHIPMENTS_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value} className="bg-dark-800 text-white">{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Decision Maker Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-300 mb-2">Decision Maker</label>
+                  <select
+                    value={leadFilters.decisionMaker}
+                    onChange={(e) => setLeadFilters({ decisionMaker: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="" className="bg-dark-800 text-white">All</option>
+                    <option value="true" className="bg-dark-800 text-white">Yes</option>
+                    <option value="false" className="bg-dark-800 text-white">No</option>
+                  </select>
                 </div>
 
                 {/* Date Range */}

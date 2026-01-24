@@ -224,6 +224,75 @@ function extractLeadInfo(fieldData) {
 }
 
 /**
+ * Normalize budget answer into AED numeric range.
+ * Examples seen:
+ * - "35k_aed>"
+ * - "35k_-_100k_aed"
+ * - "100k_-_300k_aed"
+ * - "300k_-_600k_aed"
+ * - "600k_-_1m+_aed"
+ */
+function parseBudgetRangeAED(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const s = raw.toLowerCase().trim();
+  const normalize = (x) => {
+    if (x.endsWith('m')) return Math.round(parseFloat(x.slice(0, -1)) * 1_000_000);
+    if (x.endsWith('k')) return Math.round(parseFloat(x.slice(0, -1)) * 1_000);
+    return parseInt(x, 10);
+  };
+
+  // token cleanup
+  const cleaned = s.replace(/aed|\s/g, '').replace(/>/g, '+').replace(/_/g, '');
+  // patterns: 35k-100k, 600k-1m+, 35k+, 300k-600k
+  const rangeMatch = cleaned.match(/^(\d+(?:\.\d+)?[km]?)-(\d+(?:\.\d+)?[km]?)\+?$/);
+  if (rangeMatch) {
+    const min = normalize(rangeMatch[1]);
+    const max = normalize(rangeMatch[2]);
+    return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
+  }
+  const plusMatch = cleaned.match(/^(\d+(?:\.\d+)?[km]?)\+$/);
+  if (plusMatch) {
+    const min = normalize(plusMatch[1]);
+    return Number.isFinite(min) ? { min, max: min } : null;
+  }
+  return null;
+}
+
+/**
+ * Normalize shipments answer into numeric range.
+ * Examples seen:
+ * - "500>"
+ * - "500_-_1,000"
+ * - "1,000_-_5,000"
+ * - "5,000_-_15,000"
+ */
+function parseShipmentsRange(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const s = raw.trim();
+  const cleaned = s.replace(/_/g, ' ').replace(/,/g, '').trim();
+  if (cleaned.endsWith('>')) {
+    const min = parseInt(cleaned.replace('>', '').trim(), 10);
+    return Number.isFinite(min) ? { min, max: min } : null;
+  }
+  const m = cleaned.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (m) {
+    const min = parseInt(m[1], 10);
+    const max = parseInt(m[2], 10);
+    return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
+  }
+  return null;
+}
+
+function guessDecisionMaker({ job_title, company, custom_fields }) {
+  const text = `${job_title || ''} ${company || ''} ${Object.values(custom_fields || {}).join(' ')}`.toLowerCase();
+  const yes = /(owner|founder|ceo|cfo|coo|director|head|vp|vice president|general manager|gm|managing director|md|partner)/i;
+  const no = /(student|intern|assistant|coordinator|need job|job seeker)/i;
+  if (no.test(text)) return { decision_maker: false, confidence: 0.75, reason: 'title_keyword_no' };
+  if (yes.test(text)) return { decision_maker: true, confidence: 0.75, reason: 'title_keyword_yes' };
+  return { decision_maker: null, confidence: 0.0, reason: 'unknown' };
+}
+
+/**
  * Process a single lead from Meta
  */
 async function processMetaLead(metaLead, formId, pageAccessToken) {
@@ -272,6 +341,23 @@ async function processMetaLead(metaLead, formId, pageAccessToken) {
 
   // Determine campaign type
   const campaignType = await determineCampaignType(metaLead, formId, leadInfo, campaignInfo);
+  const leadType = (campaignType === 'ebook' || campaignType === 'consultation') ? campaignType : null;
+
+  // Normalize budget + shipments from known form fields if present
+  const budgetRaw =
+    leadInfo.custom_fields["what's_your_estimated_budget_for_ai_implementation?"] ||
+    leadInfo.custom_fields["what's your estimated budget for ai implementation?"] ||
+    leadInfo.custom_fields["estimated_budget"] ||
+    null;
+  const shipmentsRaw =
+    leadInfo.custom_fields['how_many_shipments_do_you_receive_on_average_per_month?'] ||
+    leadInfo.custom_fields['how many shipments do you receive on average per month?'] ||
+    leadInfo.custom_fields['shipments_per_month'] ||
+    null;
+
+  const budgetRange = parseBudgetRangeAED(budgetRaw);
+  const shipmentsRange = parseShipmentsRange(shipmentsRaw);
+  const dmGuess = guessDecisionMaker(leadInfo);
 
   // Merge all campaign data
   const finalCampaignInfo = {
@@ -294,6 +380,7 @@ async function processMetaLead(metaLead, formId, pageAccessToken) {
     source: 'meta_forms',
     source_id: leadgenId,
     campaign_id: finalCampaignInfo.campaign_id,
+    lead_type: leadType,
     custom_fields: {
       ...leadInfo.custom_fields,
       meta_form_id: formId,
@@ -305,6 +392,16 @@ async function processMetaLead(metaLead, formId, pageAccessToken) {
       meta_campaign_id: finalCampaignInfo.campaign_id,
       meta_campaign_name: finalCampaignInfo.campaign_name,
       campaign_type: campaignType,
+      // normalized enrichment
+      estimated_budget_raw: budgetRaw || null,
+      estimated_budget_aed_min: budgetRange?.min ?? null,
+      estimated_budget_aed_max: budgetRange?.max ?? null,
+      shipments_per_month_raw: shipmentsRaw || null,
+      shipments_per_month_min: shipmentsRange?.min ?? null,
+      shipments_per_month_max: shipmentsRange?.max ?? null,
+      decision_maker: dmGuess.decision_maker,
+      decision_maker_confidence: dmGuess.confidence,
+      decision_maker_reason: dmGuess.reason,
       imported_via: 'poller',
       raw_meta_data: JSON.stringify({
         ad_id: metaLead.ad_id,

@@ -32,6 +32,11 @@ export const useAppStore = create(
         status: [],
         source: [],
         leadType: [],
+        budgetMin: '',
+        budgetMax: '',
+        shipmentsMin: '',
+        shipmentsMax: '',
+        decisionMaker: '',
         priority: '',
         dateFrom: '',
         dateTo: ''
@@ -45,6 +50,11 @@ export const useAppStore = create(
           status: [],
           source: [],
           leadType: [],
+          budgetMin: '',
+          budgetMax: '',
+          shipmentsMin: '',
+          shipmentsMax: '',
+          decisionMaker: '',
           priority: '',
           dateFrom: '',
           dateTo: ''
