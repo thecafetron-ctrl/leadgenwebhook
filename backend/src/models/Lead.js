@@ -451,10 +451,22 @@ export async function getRecentLeads(limit = 10) {
 function parseLead(row) {
   if (!row) return null;
   
+  const custom_fields =
+    typeof row.custom_fields === 'string'
+      ? JSON.parse(row.custom_fields)
+      : (row.custom_fields || {});
+
+  // If lead_type isn't set yet, derive it from campaign_type (temporary/backfill-safe)
+  const derivedLeadType =
+    row.lead_type || (custom_fields?.campaign_type === 'ebook' || custom_fields?.campaign_type === 'consultation'
+      ? custom_fields.campaign_type
+      : null);
+
   return {
     ...row,
+    lead_type: derivedLeadType,
     tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : (row.tags || []),
-    custom_fields: typeof row.custom_fields === 'string' ? JSON.parse(row.custom_fields) : (row.custom_fields || {}),
+    custom_fields,
     gdpr_consent: typeof row.gdpr_consent === 'string' ? JSON.parse(row.gdpr_consent) : row.gdpr_consent,
     email_consent: Boolean(row.email_consent),
     sms_consent: Boolean(row.sms_consent),

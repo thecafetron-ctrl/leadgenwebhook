@@ -232,8 +232,10 @@ function Dashboard() {
                         {getFullName(lead.first_name, lead.last_name)}
                       </p>
                       <p className="text-sm text-dark-400">{lead.email || 'No email'}</p>
-                      <p className="text-xs text-dark-500">
-                        {lead.lead_type ? `Type: ${lead.lead_type}` : 'Type: —'}
+                      <p className="text-xs text-dark-300">
+                        {lead.lead_type || lead.custom_fields?.campaign_type
+                          ? `Type: ${(lead.lead_type || lead.custom_fields?.campaign_type)}`
+                          : 'Type: —'}
                       </p>
                     </div>
                   </div>

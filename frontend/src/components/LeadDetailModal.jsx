@@ -45,6 +45,38 @@ function LeadDetailModal({ lead, onClose }) {
 
   if (!lead) return null;
 
+  const formatValue = (v) => {
+    if (v === null || v === undefined || v === '') return '—';
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    if (typeof v === 'number') return v.toLocaleString();
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  };
+
+  const prettyKey = (k) =>
+    String(k)
+      .replace(/_/g, ' ')
+      .replace(/\?/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const cf = lead.custom_fields || {};
+  const excludeKeys = new Set([
+    'ad_name', 'meta_ad_name', 'campaign_name', 'meta_campaign_name',
+    'budget', 'shipments', 'why_automate', 'imported_from_csv',
+    'meta_ad_id', 'meta_adset_id', 'meta_adset_name', 'meta_campaign_id',
+    'campaign_type', 'raw_meta_data',
+    // normalized enrichment
+    'estimated_budget_raw', 'estimated_budget_aed_min', 'estimated_budget_aed_max',
+    'shipments_per_month_raw', 'shipments_per_month_min', 'shipments_per_month_max',
+    'decision_maker', 'decision_maker_confidence', 'decision_maker_reason',
+    // AI scoring enrichment (stored in custom_fields)
+    'ai_intent_score', 'ai_intent_category', 'ai_confidence', 'ai_flags',
+    'ai_top_reasons', 'ai_recommended_next_step', 'ai_model', 'ai_scored_at'
+  ]);
+
+  const additionalEntries = Object.entries(cf).filter(([k]) => !excludeKeys.has(k));
+
   return (
     <AnimatePresence>
       <motion.div
@@ -364,22 +396,97 @@ function LeadDetailModal({ lead, onClose }) {
                 )}
 
                 {/* Other Custom Fields */}
-                {lead.custom_fields && Object.keys(lead.custom_fields).filter(k => 
-                  !['ad_name', 'meta_ad_name', 'campaign_name', 'meta_campaign_name', 'budget', 'shipments', 'why_automate', 'imported_from_csv', 'meta_ad_id', 'meta_adset_id', 'meta_adset_name', 'meta_campaign_id', 'campaign_type', 'raw_meta_data'].includes(k)
-                ).length > 0 && (
-                  <div className="p-4 bg-dark-800/30 rounded-xl">
-                    <h4 className="text-sm font-medium text-dark-400 mb-2">Additional Data</h4>
-                    <div className="code-block text-xs overflow-auto max-h-40">
-                      {JSON.stringify(
-                        Object.fromEntries(
-                          Object.entries(lead.custom_fields).filter(([k]) => 
-                            !['ad_name', 'meta_ad_name', 'campaign_name', 'meta_campaign_name', 'budget', 'shipments', 'why_automate', 'imported_from_csv', 'meta_ad_id', 'meta_adset_id', 'meta_adset_name', 'meta_campaign_id', 'campaign_type', 'raw_meta_data'].includes(k)
-                          )
-                        ), 
-                        null, 
-                        2
-                      )}
+                {/* Clean Custom Fields Layout */}
+                {Object.keys(cf || {}).length > 0 && (
+                  <div className="space-y-3">
+                    {/* Budget / Volume / Decision Maker */}
+                    <div className="p-4 bg-dark-800/30 rounded-xl">
+                      <h4 className="text-sm font-medium text-dark-400 mb-3">Key Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-dark-500">Budget (AED):</span>
+                          <span className="text-white">
+                            {cf.estimated_budget_aed_min != null
+                              ? `${formatValue(cf.estimated_budget_aed_min)} - ${formatValue(cf.estimated_budget_aed_max)}`
+                              : formatValue(cf.estimated_budget_raw)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-dark-500">Shipments / month:</span>
+                          <span className="text-white">
+                            {cf.shipments_per_month_min != null
+                              ? `${formatValue(cf.shipments_per_month_min)} - ${formatValue(cf.shipments_per_month_max)}`
+                              : formatValue(cf.shipments_per_month_raw)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-dark-500">Decision maker:</span>
+                          <span className="text-white">{formatValue(cf.decision_maker)}</span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-dark-500">DM confidence:</span>
+                          <span className="text-white">{cf.decision_maker_confidence != null ? Number(cf.decision_maker_confidence).toFixed(2) : '—'}</span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* AI Intent Scoring (if present) */}
+                    {(cf.ai_intent_score != null || lead.score != null) && (
+                      <div className="p-4 bg-dark-800/30 rounded-xl">
+                        <h4 className="text-sm font-medium text-dark-400 mb-3">AI Intent</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div className="flex justify-between gap-3">
+                            <span className="text-dark-500">Intent score:</span>
+                            <span className="text-white font-semibold">{formatValue(cf.ai_intent_score ?? lead.score)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-dark-500">Category:</span>
+                            <span className="text-white">{formatValue(cf.ai_intent_category)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-dark-500">Confidence:</span>
+                            <span className="text-white">{cf.ai_confidence != null ? Number(cf.ai_confidence).toFixed(2) : '—'}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-dark-500">Next step:</span>
+                            <span className="text-white">{formatValue(cf.ai_recommended_next_step)}</span>
+                          </div>
+                        </div>
+                        {Array.isArray(cf.ai_top_reasons) && cf.ai_top_reasons.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-dark-700/50">
+                            <p className="text-xs text-dark-500 mb-2">Top reasons</p>
+                            <ul className="space-y-1">
+                              {cf.ai_top_reasons.slice(0, 6).map((r, idx) => (
+                                <li key={idx} className="text-sm text-dark-200">- {r}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Remaining fields as a table */}
+                    {additionalEntries.length > 0 && (
+                      <div className="p-4 bg-dark-800/30 rounded-xl">
+                        <h4 className="text-sm font-medium text-dark-400 mb-3">All Form Fields</h4>
+                        <div className="space-y-2">
+                          {additionalEntries.map(([k, v]) => (
+                            <div key={k} className="flex items-start justify-between gap-4">
+                              <span className="text-xs text-dark-500 w-1/2">{prettyKey(k)}</span>
+                              <span className="text-sm text-white w-1/2 text-right break-words">{formatValue(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Raw JSON (collapsible) */}
+                    <details className="p-4 bg-dark-800/30 rounded-xl">
+                      <summary className="text-sm font-medium text-dark-400 cursor-pointer">Raw custom_fields JSON</summary>
+                      <div className="code-block text-xs overflow-auto max-h-60 mt-3">
+                        {JSON.stringify(cf, null, 2)}
+                      </div>
+                    </details>
                   </div>
                 )}
               </div>
