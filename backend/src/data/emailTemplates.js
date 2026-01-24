@@ -1053,7 +1053,7 @@ Thanks for applying for automation.
 
 My team has sent you an email with our 90-Day Freight Scaling Playbook and the next step to schedule a 45-minute automation consultation.
 
-Please check your email when you get a chance and book a time that works for you.
+Please check your email for the booking link and reserve a slot with us.
 
 Note: Use the same email that you filled out the form with.
 
