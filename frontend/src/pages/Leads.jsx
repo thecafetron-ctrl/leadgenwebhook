@@ -214,14 +214,21 @@ function Leads() {
   });
 
   // AI Score mutation
+  const [scoringLeadId, setScoringLeadId] = useState(null);
   const scoreMutation = useMutation({
     mutationFn: (leadId) => leadsApi.scoreLead(leadId),
+    onMutate: (leadId) => {
+      setScoringLeadId(leadId);
+    },
     onSuccess: (data) => {
       toast.success(`AI Score: ${data.data.score}/100`);
       queryClient.invalidateQueries(['leads']);
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to score lead');
+    },
+    onSettled: () => {
+      setScoringLeadId(null);
     }
   });
 
@@ -834,7 +841,7 @@ function Leads() {
                         score={lead.score} 
                         onScore={() => scoreMutation.mutate(lead.id)}
                         onAdvice={() => setAdviceModal({ open: true, leadId: lead.id })}
-                        isLoading={scoreMutation.isLoading}
+                        isLoading={scoringLeadId === lead.id}
                       />
                     </td>
                     <td className="p-4">
@@ -1322,14 +1329,27 @@ function WorkflowModal({ isOpen, lead, initialStatus, onClose, onEnroll, onCance
 function ScoreCell({ score, onScore, onAdvice, isLoading }) {
   if (score === null || score === undefined || score === 0) {
     return (
-      <button
-        onClick={onScore}
-        disabled={isLoading}
-        className="px-2 py-1 rounded-lg bg-dark-800/50 text-dark-400 hover:text-accent-400 hover:bg-accent-500/10 transition-colors text-xs flex items-center gap-1"
-      >
-        <Sparkles className="w-3 h-3" />
-        Score
-      </button>
+      <div>
+        <button
+          onClick={onScore}
+          disabled={isLoading}
+          className="px-2 py-1 rounded-lg bg-dark-800/50 text-dark-400 hover:text-accent-400 hover:bg-accent-500/10 transition-colors text-xs flex items-center gap-1 disabled:opacity-60"
+        >
+          <Sparkles className="w-3 h-3" />
+          {isLoading ? 'Scoring…' : 'Score'}
+        </button>
+        {isLoading && (
+          <div className="mt-1 h-1 w-24 bg-dark-700 rounded overflow-hidden">
+            <div className="h-1 w-2/3 bg-accent-500 animate-pulse" />
+          </div>
+        )}
+        <button
+          onClick={onAdvice}
+          className="mt-2 block text-xs text-primary-400 hover:text-primary-300"
+        >
+          AI: more info
+        </button>
+      </div>
     );
   }
 
