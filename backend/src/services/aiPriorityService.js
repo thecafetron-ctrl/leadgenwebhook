@@ -293,61 +293,18 @@ LEAD:
 }
 
 function postProcessAiScore(lead, aiResult) {
-  const cf = lead.custom_fields || {};
-  const signals = getNormalizedSignals(lead);
-  const leadType = lead.lead_type || cf.campaign_type || null;
   const flags = aiResult.flags || {};
-
   let score = aiResult.score;
 
-  // Hard caps for junk / fake
-  if (flags.likely_fake || flags.job_seeker) {
+  // Only apply hard caps for clearly fake/junk leads - let AI score stand otherwise
+  if (flags.likely_fake) {
+    score = Math.min(score, 15);
+  }
+  if (flags.job_seeker) {
     score = Math.min(score, 20);
   }
-  if (flags.bad_contact_info) {
-    score = Math.min(score, 45);
-  }
 
-  // Ebook default cap unless strong signals (300k+ budget or 5000+ shipments)
-  const strongSignals =
-    (signals.budgetMin != null && signals.budgetMin >= 300000) ||
-    (signals.shipMin != null && signals.shipMin >= 5000) ||
-    (signals.dm === true && signals.budgetMin != null && signals.budgetMin >= 100000);
-  if ((leadType === 'ebook' || flags.ebook_hunter) && !strongSignals) {
-    score = Math.min(score, 50);
-  }
-
-  // Hard cap for truly low budget (35k and below) - these are NOT high-value leads
-  if (signals.budgetMax != null && signals.budgetMax <= 35000) {
-    score = Math.min(score, 45);
-  }
-  if (signals.budgetMax != null && signals.budgetMax <= 100000 && signals.budgetMax > 35000) {
-    score = Math.min(score, 60);
-  }
-
-  // Floors for very strong / "perfect" profiles (allows reaching 100)
-  const hasBusinessDomain = !!extractCompanyDomain(lead.email);
-  const hasWhy = typeof signals.why === 'string' && signals.why.trim().length >= 15;
-  const consultationLike = leadType === 'consultation' || leadType === null;
-
-  if (consultationLike && signals.dm === true && !flags.likely_fake && !flags.job_seeker) {
-    // 300k+ budget and 1000+ shipments = warm
-    if ((signals.budgetMin != null && signals.budgetMin >= 300000) && (signals.shipMin != null && signals.shipMin >= 1000)) {
-      score = Math.max(score, 75);
-    }
-    // 600k+ budget and 5000+ shipments = hot
-    if ((signals.budgetMin != null && signals.budgetMin >= 600000) && (signals.shipMin != null && signals.shipMin >= 5000)) {
-      score = Math.max(score, 90);
-    }
-    // 1M+ budget and 10000+ shipments = near perfect
-    if ((signals.budgetMin != null && signals.budgetMin >= 1000000) && (signals.shipMin != null && signals.shipMin >= 10000)) {
-      score = Math.max(score, 95);
-    }
-    // All signals aligned = allow 100
-    if (hasBusinessDomain && lead.company && hasWhy && score >= 95) {
-      score = Math.max(score, 98);
-    }
-  }
+  // Trust the AI score - no other caps. Let good leads score high.
 
   score = Math.max(0, Math.min(100, Math.round(score)));
 
@@ -382,9 +339,67 @@ async function persistAiScore(leadId, aiResult) {
 }
 
 /**
- * Get AI advice on how to approach this lead
+ * Fetch multiple URLs in parallel with timeout
+ */
+async function fetchMultipleUrls(urls, timeoutMs = 5000) {
+  const results = await Promise.allSettled(
+    urls.map(async (url) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StructureBot/1.0)' }
+        });
+        clearTimeout(timeout);
+        if (!res.ok) return null;
+        const html = await res.text();
+        return { url, html };
+      } catch {
+        clearTimeout(timeout);
+        return null;
+      }
+    })
+  );
+  return results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
+}
+
+/**
+ * Extract useful info from HTML
+ */
+function parseHtmlForInsights(html, url) {
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const metaDesc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+  const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+  
+  // Extract visible text (remove scripts, styles)
+  const noScript = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, '');
+  const text = noScript.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  // Look for key info
+  const aboutMatch = text.match(/(about us|who we are|our company|our story)[:\s]*([^.]+\.[^.]+\.)/i);
+  const servicesMatch = text.match(/(our services|what we do|we offer|we provide)[:\s]*([^.]+\.[^.]+\.)/i);
+  
+  return {
+    url,
+    title: titleMatch?.[1]?.trim(),
+    description: metaDesc?.[1]?.trim(),
+    headline: h1Match?.[1]?.trim(),
+    aboutSnippet: aboutMatch?.[2]?.trim(),
+    servicesSnippet: servicesMatch?.[2]?.trim(),
+    textExcerpt: text.slice(0, 4000)
+  };
+}
+
+/**
+ * Get AI advice on how to approach this lead - with REAL company research
  */
 export async function getLeadAdvice(leadId) {
+  const startTime = Date.now();
+  
   const result = await query('SELECT * FROM leads WHERE id = $1', [leadId]);
   if (result.rows.length === 0) {
     throw new Error('Lead not found');
@@ -393,13 +408,31 @@ export async function getLeadAdvice(leadId) {
   const lead = result.rows[0];
   const cf = lead.custom_fields || {};
   const domain = extractCompanyDomain(lead.email);
-  let websiteSnapshot = null;
+  const companyName = lead.company || '';
+  
+  // Parallel research: fetch company website + LinkedIn/Google if possible
+  let research = { website: null, linkedin: null, additionalPages: [] };
+  
   if (domain) {
-    websiteSnapshot = await fetchWebsiteSnapshot(`https://${domain}`);
-    if (!websiteSnapshot) {
-      websiteSnapshot = await fetchWebsiteSnapshot(`http://${domain}`);
+    const urlsToFetch = [
+      `https://${domain}`,
+      `https://${domain}/about`,
+      `https://${domain}/about-us`,
+      `https://${domain}/services`,
+      `https://www.${domain}`,
+    ];
+    
+    console.log(`🔍 Researching ${domain} for lead ${lead.first_name}...`);
+    const fetched = await fetchMultipleUrls(urlsToFetch, 4000);
+    
+    if (fetched.length > 0) {
+      research.website = parseHtmlForInsights(fetched[0].html, fetched[0].url);
+      research.additionalPages = fetched.slice(1).map(f => parseHtmlForInsights(f.html, f.url));
     }
   }
+  
+  const researchTime = Date.now() - startTime;
+  console.log(`📊 Research completed in ${researchTime}ms`);
 
   if (!openai) {
     return {
@@ -407,70 +440,122 @@ export async function getLeadAdvice(leadId) {
       name: `${lead.first_name} ${lead.last_name}`,
       company: lead.company,
       score: lead.score,
-      assessment: "OpenAI not configured. This is a high-priority lead based on budget and volume.",
-      talkingPoints: [
-        "Focus on their specific pain points",
-        "Discuss ROI and time savings",
-        "Mention case studies from similar companies"
-      ],
+      assessment: "OpenAI not configured.",
+      companyOverview: research.website?.description || "No company info available",
+      researchedInsights: [],
+      likelyPainPoints: ["Manual data entry", "Slow quoting", "Invoice errors"],
+      talkingPoints: ["Focus on ROI", "Mention similar companies", "Offer pilot"],
       objections: ["Budget timing", "Implementation concerns"],
-      openingLine: `Hi ${lead.first_name}, I noticed you're handling significant volume. I'd love to show you how we've helped similar operations cut manual work by 70%.`,
-      companyResearch: websiteSnapshot
-        ? { website: websiteSnapshot.url, title: websiteSnapshot.title, description: websiteSnapshot.description }
-        : { website: domain ? `https://${domain}` : null, note: 'No website research available' }
+      openingLine: `Hi ${lead.first_name}, noticed you're in logistics. Happy to show you how we automate ops.`,
+      researchSources: research.website ? [research.website.url] : []
     };
   }
 
-  const prompt = `You are a senior sales advisor for STRUCTURE, a logistics automation company. Give brief, actionable advice. If website content is available, use it to infer what the company does and likely goals.
+  // Build comprehensive research context
+  const websiteContent = research.website ? `
+COMPANY WEBSITE (${research.website.url}):
+- Title: ${research.website.title || 'N/A'}
+- Description: ${research.website.description || 'N/A'}
+- Headline: ${research.website.headline || 'N/A'}
+- About: ${research.website.aboutSnippet || 'N/A'}
+- Services: ${research.website.servicesSnippet || 'N/A'}
+- Full text excerpt: ${research.website.textExcerpt}
+` : 'NO WEBSITE FOUND';
 
-LEAD:
+  const additionalContent = research.additionalPages.length > 0 
+    ? research.additionalPages.map(p => `
+ADDITIONAL PAGE (${p.url}):
+${p.textExcerpt?.slice(0, 1500) || 'N/A'}
+`).join('\n')
+    : '';
+
+  const prompt = `You are an elite B2B sales researcher for STRUCTURE (logistics automation platform in Dubai/UAE). 
+Your job: Research this lead's company and give SPECIFIC, ACTIONABLE sales intelligence.
+
+LEAD INFO:
 - Name: ${lead.first_name} ${lead.last_name}
-- Company: ${lead.company || 'Unknown'}
+- Company: ${companyName || 'Unknown'}
+- Email Domain: ${domain || 'N/A'}
 - Role: ${cf["what's_your_role_in_the_company?"] || lead.job_title || 'Unknown'}
 - Budget: ${cf["what's_your_estimated_budget_for_ai_implementation?"] || 'Not specified'}
 - Monthly Shipments: ${cf["how_many_shipments_do_you_receive_on_average_per_month?"] || 'Not specified'}
-- Why automating: ${cf["why_do_you_want_to_automate_now?"] || 'Not specified'}
-- Score: ${lead.score}/100
+- Why automating now: ${cf["why_do_you_want_to_automate_now?"] || 'Not specified'}
+- Lead Score: ${lead.score}/100
+- Lead Type: ${lead.lead_type || 'unknown'}
 
-WEBSITE (may be null):
-${websiteSnapshot ? `
-- url: ${websiteSnapshot.url}
-- title: ${websiteSnapshot.title || 'n/a'}
-- description: ${websiteSnapshot.description || 'n/a'}
-- text_excerpt: ${websiteSnapshot.textExcerpt}
-` : 'No website content available'}
+${websiteContent}
 
-STRUCTURE automates: quoting, documents, invoicing, customs, finance reconciliation.
+${additionalContent}
 
-Return JSON only:
+STRUCTURE SOLUTIONS (what we sell):
+- Automated quoting (instant rate calculations)
+- Document automation (BL, invoices, customs docs)
+- Finance reconciliation
+- Customs compliance automation
+- WhatsApp/email communication automation
+
+YOUR TASK:
+1. Analyze the company's business model from website
+2. Identify SPECIFIC pain points they likely have (based on their industry, size, services)
+3. Find angles that show you've done research (mention specific things from their website)
+4. Give a hyper-personalized opening line that proves you researched them
+
+Return ONLY valid JSON:
 {
-  "assessment": "2 sentences max about this lead",
-  "companySummary": "1-2 sentences about what the company does (use website if available)",
-  "likelyGoals": ["goal 1", "goal 2", "goal 3"],
-  "talkingPoints": ["point 1", "point 2", "point 3"],
-  "objections": ["objection 1", "objection 2"],
-  "openingLine": "A personalized WhatsApp/email opener"
+  "companyOverview": "What this company actually does (2-3 sentences, be specific)",
+  "industryVertical": "Their specific niche (e.g., 'perishables freight', 'automotive logistics', 'e-commerce fulfillment')",
+  "estimatedSize": "small/medium/large based on website",
+  "researchedInsights": [
+    "Specific insight 1 from their website (e.g., 'They handle temperature-controlled cargo based on their services page')",
+    "Specific insight 2",
+    "Specific insight 3"
+  ],
+  "likelyPainPoints": [
+    "Pain point 1 specific to their business",
+    "Pain point 2",
+    "Pain point 3"
+  ],
+  "competitiveContext": "Who they compete with or what market pressures they face",
+  "talkingPoints": [
+    "Specific talking point referencing their business",
+    "ROI angle specific to their volume/budget",
+    "Relevant case study angle"
+  ],
+  "objections": ["Likely objection 1", "Likely objection 2"],
+  "openingLine": "Hyper-personalized opener that references something specific about their company",
+  "followUpAngle": "What to discuss in the second conversation"
 }`;
 
   try {
+    const aiStart = Date.now();
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 400,
+      max_tokens: 800,
       temperature: 0.7,
     });
+    const aiTime = Date.now() - aiStart;
+    console.log(`🤖 AI analysis completed in ${aiTime}ms`);
 
     const response = completion.choices[0].message.content.trim();
-    const parsed = JSON.parse(response);
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : response);
     
     return {
       leadId,
       name: `${lead.first_name} ${lead.last_name}`,
       company: lead.company,
+      email: lead.email,
       score: lead.score,
-      companyResearch: websiteSnapshot
-        ? { website: websiteSnapshot.url, title: websiteSnapshot.title, description: websiteSnapshot.description }
-        : { website: domain ? `https://${domain}` : null, note: 'No website research available' },
+      researchSources: [
+        research.website?.url,
+        ...research.additionalPages.map(p => p.url)
+      ].filter(Boolean),
+      timings: {
+        researchMs: researchTime,
+        aiMs: aiTime,
+        totalMs: Date.now() - startTime
+      },
       ...parsed
     };
   } catch (error) {
@@ -480,12 +565,17 @@ Return JSON only:
       name: `${lead.first_name} ${lead.last_name}`,
       company: lead.company,
       score: lead.score,
-      assessment: "High-value lead based on their budget and volume.",
-      companySummary: websiteSnapshot?.description || "Could not fetch company website info.",
-      likelyGoals: ["Reduce manual ops workload", "Increase quoting speed", "Improve billing accuracy"],
-      talkingPoints: ["Discuss their current pain points", "Show ROI potential", "Offer a pilot program"],
-      objections: ["Implementation timeline", "Integration concerns"],
-      openingLine: `Hi ${lead.first_name}, saw you're looking to automate. Happy to show you what's possible.`
+      companyOverview: research.website?.description || "Could not analyze company",
+      researchedInsights: research.website ? [
+        `Website: ${research.website.title}`,
+        research.website.aboutSnippet || "No about section found"
+      ] : ["No website found for research"],
+      likelyPainPoints: ["Manual quoting processes", "Document handling overhead", "Reconciliation delays"],
+      talkingPoints: ["Discuss current ops pain", "Show ROI calculator", "Offer pilot program"],
+      objections: ["Implementation timeline", "Integration with existing systems"],
+      openingLine: `Hi ${lead.first_name}, saw you're looking to automate your logistics ops. Happy to show you what's possible.`,
+      researchSources: research.website ? [research.website.url] : [],
+      error: error.message
     };
   }
 }
