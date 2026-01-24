@@ -65,19 +65,30 @@ const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const LEAD_TYPES = ['consultation', 'ebook'];
-// Budget buckets (AED) — treating <100k as low
+// Budget buckets (AED) — matching form options
 const BUDGET_OPTIONS = [
+  { label: '35k', value: 35000 },
   { label: '100k', value: 100000 },
   { label: '300k', value: 300000 },
   { label: '600k', value: 600000 },
-  { label: '1m', value: 1000000 },
-  { label: '2m', value: 2000000 }
+  { label: '1M', value: 1000000 }
+];
+// Quick budget range presets
+const BUDGET_RANGES = [
+  { label: 'All Budgets', min: '', max: '' },
+  { label: '< 35k (Low)', min: '', max: 35000 },
+  { label: '35k - 100k', min: 35000, max: 100000 },
+  { label: '100k - 300k', min: 100000, max: 300000 },
+  { label: '300k - 600k', min: 300000, max: 600000 },
+  { label: '600k - 1M', min: 600000, max: 1000000 },
+  { label: '1M+ (Premium)', min: 1000000, max: '' }
 ];
 const SHIPMENTS_OPTIONS = [
+  { label: '100', value: 100 },
   { label: '500', value: 500 },
   { label: '1,000', value: 1000 },
   { label: '5,000', value: 5000 },
-  { label: '15,000', value: 15000 }
+  { label: '10,000', value: 10000 }
 ];
 const INTENT_CATEGORIES = ['', 'hot', 'warm', 'medium', 'low', 'junk'];
 const SCORE_OPTIONS = ['', 0, 20, 40, 60, 80, 90, 100];
@@ -651,28 +662,27 @@ function Leads() {
                 {/* Budget Filter */}
                 <div>
                   <label className="block text-sm font-medium text-dark-300 mb-2">Budget (AED)</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={leadFilters.budgetMin}
-                      onChange={(e) => setLeadFilters({ budgetMin: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="" className="bg-dark-800 text-white">Min</option>
-                      {BUDGET_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value} className="bg-dark-800 text-white">{o.label}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={leadFilters.budgetMax}
-                      onChange={(e) => setLeadFilters({ budgetMax: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="" className="bg-dark-800 text-white">Max</option>
-                      {BUDGET_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value} className="bg-dark-800 text-white">{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    value={`${leadFilters.budgetMin || ''}-${leadFilters.budgetMax || ''}`}
+                    onChange={(e) => {
+                      const [min, max] = e.target.value.split('-');
+                      setLeadFilters({ 
+                        budgetMin: min || '', 
+                        budgetMax: max || '' 
+                      });
+                    }}
+                    className="input-field"
+                  >
+                    {BUDGET_RANGES.map((r, i) => (
+                      <option 
+                        key={i} 
+                        value={`${r.min}-${r.max}`} 
+                        className="bg-dark-800 text-white"
+                      >
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Shipments Filter */}
