@@ -16,6 +16,7 @@ import {
   Activity,
   Globe,
   CheckCircle2,
+  XCircle,
   MessageSquare
 } from 'lucide-react';
 import { leadsApi } from '../lib/api';
@@ -284,6 +285,47 @@ function LeadDetailModal({ lead, onClose }) {
                   </div>
                 )}
 
+                {/* Call History */}
+                {(() => {
+                  const calls = activities.filter(a => a.type === 'call');
+                  return calls.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-dark-400 mb-3 flex items-center gap-1">
+                        <Phone className="w-4 h-4" />
+                        Call History ({calls.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {calls.map(call => {
+                          const outcome = call.metadata?.outcome || 'unknown';
+                          const isAnswered = outcome === 'answered';
+                          return (
+                            <div key={call.id} className="flex gap-3 p-2 bg-dark-800/30 rounded-lg">
+                              <div className={cn(
+                                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                                isAnswered ? "bg-success-500/20" : "bg-danger-500/20"
+                              )}>
+                                {isAnswered ? (
+                                  <CheckCircle2 className="w-4 h-4 text-success-400" />
+                                ) : (
+                                  <XCircle className="w-4 h-4 text-danger-400" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-white">
+                                  Call {isAnswered ? 'Answered' : 'Unanswered'}
+                                </p>
+                                <p className="text-xs text-dark-500">
+                                  {formatDateTime(call.created_at)} • {formatRelativeTime(call.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Activity Log */}
                 <div>
                   <h4 className="text-sm font-medium text-dark-400 mb-3 flex items-center gap-1">
@@ -291,10 +333,10 @@ function LeadDetailModal({ lead, onClose }) {
                     Activity Log
                   </h4>
                   <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {activities.length === 0 ? (
+                    {activities.filter(a => a.type !== 'call').length === 0 ? (
                       <p className="text-dark-500 text-sm">No activity recorded</p>
                     ) : (
-                      activities.map(activity => (
+                      activities.filter(a => a.type !== 'call').map(activity => (
                         <div key={activity.id} className="flex gap-3">
                           <div className="w-8 h-8 rounded-full bg-dark-800 flex items-center justify-center flex-shrink-0">
                             <CheckCircle2 className="w-4 h-4 text-primary-400" />

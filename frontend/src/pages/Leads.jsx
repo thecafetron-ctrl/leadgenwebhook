@@ -60,6 +60,7 @@ import {
 } from '../lib/utils';
 import LeadModal from '../components/LeadModal';
 import LeadDetailModal from '../components/LeadDetailModal';
+import CallLogModal from '../components/CallLogModal';
 
 const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
@@ -111,6 +112,27 @@ const formatLeadType = (type) => {
 };
 
 const getEffectiveLeadType = (lead) => lead?.lead_type || lead?.custom_fields?.campaign_type || null;
+
+// Call Count Badge Component
+function CallCountBadge({ leadId }) {
+  const { data } = useQuery({
+    queryKey: ['leadCallCount', leadId],
+    queryFn: () => leadsApi.getCallCount(leadId),
+    enabled: !!leadId,
+    staleTime: 30000 // Cache for 30 seconds
+  });
+
+  const callCount = data?.data?.call_count || 0;
+
+  if (callCount === 0) return null;
+
+  return (
+    <span className="text-xs text-dark-400 flex items-center gap-1">
+      <Phone className="w-3 h-3" />
+      {callCount} {callCount === 1 ? 'call' : 'calls'}
+    </span>
+  );
+}
 
 function Leads() {
   const queryClient = useQueryClient();
@@ -345,6 +367,9 @@ function Leads() {
 
   // State for workflow modal
   const [workflowModal, setWorkflowModal] = useState({ open: false, lead: null, status: null });
+
+  // State for call modal
+  const [callModal, setCallModal] = useState({ open: false, lead: null });
 
   // Listen for refresh events
   useEffect(() => {
@@ -971,13 +996,11 @@ function Leads() {
                           <p className="font-medium text-white">
                             {getFullName(lead.first_name, lead.last_name)}
                           </p>
-                          <div className="mt-1 flex items-center gap-2">
+                          <div className="mt-1 flex items-center gap-2 flex-wrap">
                             <span className={cn("badge text-[11px] px-2 py-0.5", getLeadTypeColor(getEffectiveLeadType(lead)))}>
                               {formatLeadType(getEffectiveLeadType(lead))}
                             </span>
-                            <span className="text-xs text-dark-400">
-                              Type
-                            </span>
+                            <CallCountBadge leadId={lead.id} />
                           </div>
                           {lead.company && (
                             <p className="text-xs text-dark-400 flex items-center gap-1">
@@ -1070,6 +1093,13 @@ function Leads() {
                             </button>
                           )
                         )}
+                        <button
+                          onClick={() => setCallModal({ open: true, lead })}
+                          className="p-2 rounded-lg text-dark-400 hover:text-primary-400 hover:bg-primary-500/10 transition-colors"
+                          title="Log call"
+                        >
+                          <Phone className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => openModal('viewLead', lead)}
                           className="p-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-800/50 transition-colors"
@@ -1231,6 +1261,13 @@ function Leads() {
         isOpen={adviceModal.open}
         leadId={adviceModal.leadId}
         onClose={() => setAdviceModal({ open: false, leadId: null })}
+      />
+
+      {/* Call Log Modal */}
+      <CallLogModal
+        lead={callModal.lead}
+        isOpen={callModal.open}
+        onClose={() => setCallModal({ open: false, lead: null })}
       />
     </div>
   );

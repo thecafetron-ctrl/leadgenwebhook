@@ -77,6 +77,18 @@ CREATE TABLE IF NOT EXISTS system_settings (
 );
 `;
 
+const LEAD_ACTIVITIES_TABLE = `
+CREATE TABLE IF NOT EXISTS lead_activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL,
+  description TEXT,
+  metadata JSONB,
+  performed_by VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+`;
+
 const INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);
 CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
@@ -85,6 +97,9 @@ CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_source ON webhook_logs(source);
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_status ON webhook_logs(status);
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_received_at ON webhook_logs(received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_activities_lead_id ON lead_activities(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_activities_type ON lead_activities(type);
+CREATE INDEX IF NOT EXISTS idx_lead_activities_created_at ON lead_activities(created_at DESC);
 `;
 
 export async function migrate() {
@@ -103,6 +118,10 @@ export async function migrate() {
     // Create system settings table (for email rotation counter, etc.)
     await query(SYSTEM_SETTINGS_TABLE);
     console.log('✅ System settings table ready');
+    
+    // Create lead activities table
+    await query(LEAD_ACTIVITIES_TABLE);
+    console.log('✅ Lead activities table ready');
     
     // Create indexes
     await query(INDEXES);

@@ -74,6 +74,20 @@ export const leadsApi = {
   },
 
   /**
+   * Log a call for a lead
+   */
+  logCall: async (id, outcome) => {
+    return api.post(`/leads/${id}/calls`, { outcome });
+  },
+
+  /**
+   * Get call count for a lead
+   */
+  getCallCount: async (id) => {
+    return api.get(`/leads/${id}/calls`);
+  },
+
+  /**
    * Create a new lead
    */
   createLead: async (data) => {

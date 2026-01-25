@@ -6,6 +6,7 @@
  */
 
 import { Router } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import Lead from '../models/Lead.js';
 import { leadSchema, leadQuerySchema, validateBody, validateQuery } from '../middleware/validation.js';
 import { scoreLead, scoreAllLeads, rescoreAllLeads, getLeadAdvice } from '../services/aiPriorityService.js';
@@ -615,6 +616,150 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to delete lead',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/leads/:id/activities
+ * Get all activities for a lead
+ */
+router.get('/:id/activities', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const result = await query(
+      `SELECT * FROM lead_activities 
+       WHERE lead_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT $2`,
+      [id, limit]
+    );
+    
+    const activities = result.rows.map(row => ({
+      id: row.id,
+      type: row.type,
+      description: row.description,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+      performed_by: row.performed_by,
+      created_at: row.created_at
+    }));
+    
+    res.json({
+      success: true,
+      data: activities
+    });
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch activities',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/leads/:id/calls
+ * Log a call for a lead
+ */
+router.post('/:id/calls', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { outcome } = req.body; // 'answered' or 'unanswered'
+    
+    if (!outcome || !['answered', 'unanswered'].includes(outcome)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid outcome. Must be "answered" or "unanswered"'
+      });
+    }
+    
+    // Check if lead exists
+    const lead = await Lead.getLeadById(id);
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found'
+      });
+    }
+    
+    // Create activity
+    const activityId = uuidv4();
+    const now = new Date().toISOString();
+    
+    await query(
+      `INSERT INTO lead_activities (id, lead_id, type, description, metadata, performed_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        activityId,
+        id,
+        'call',
+        `Call ${outcome === 'answered' ? 'answered' : 'unanswered'}`,
+        JSON.stringify({ outcome }),
+        'user', // TODO: get from auth
+        now
+      ]
+    );
+    
+    // Update lead's last_contacted_at
+    await query(
+      `UPDATE leads SET last_contacted_at = $1, updated_at = $1 WHERE id = $2`,
+      [now, id]
+    );
+    
+    // Get call count
+    const callCountResult = await query(
+      `SELECT COUNT(*) as count FROM lead_activities WHERE lead_id = $1 AND type = 'call'`,
+      [id]
+    );
+    const callCount = parseInt(callCountResult.rows[0].count);
+    
+    res.json({
+      success: true,
+      data: {
+        id: activityId,
+        outcome,
+        call_count: callCount,
+        created_at: now
+      }
+    });
+  } catch (error) {
+    console.error('Error logging call:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to log call',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/leads/:id/calls
+ * Get call count for a lead
+ */
+router.get('/:id/calls', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query(
+      `SELECT COUNT(*) as count FROM lead_activities WHERE lead_id = $1 AND type = 'call'`,
+      [id]
+    );
+    
+    const callCount = parseInt(result.rows[0].count);
+    
+    res.json({
+      success: true,
+      data: { call_count: callCount }
+    });
+  } catch (error) {
+    console.error('Error fetching call count:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch call count',
       message: error.message
     });
   }
