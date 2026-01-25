@@ -88,6 +88,20 @@ export const leadsApi = {
   },
 
   /**
+   * Update a call activity
+   */
+  updateCall: async (activityId, outcome) => {
+    return api.put(`/leads/activities/${activityId}`, { outcome });
+  },
+
+  /**
+   * Delete a call activity
+   */
+  deleteCall: async (activityId) => {
+    return api.delete(`/leads/activities/${activityId}`);
+  },
+
+  /**
    * Create a new lead
    */
   createLead: async (data) => {

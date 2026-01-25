@@ -127,7 +127,7 @@ function CallCountBadge({ leadId }) {
   if (callCount === 0) return null;
 
   return (
-    <span className="text-xs text-dark-400 flex items-center gap-1">
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary-500/20 text-primary-300 border border-primary-500/30 text-[11px] font-medium">
       <Phone className="w-3 h-3" />
       {callCount} {callCount === 1 ? 'call' : 'calls'}
     </span>

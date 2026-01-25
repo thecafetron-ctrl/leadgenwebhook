@@ -3,7 +3,8 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { 
   X, 
   Mail, 
@@ -17,7 +18,9 @@ import {
   Globe,
   CheckCircle2,
   XCircle,
-  MessageSquare
+  MessageSquare,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { leadsApi } from '../lib/api';
 import { 
@@ -35,6 +38,8 @@ import {
 } from '../lib/utils';
 
 function LeadDetailModal({ lead, onClose }) {
+  const queryClient = useQueryClient();
+  
   // Fetch activities if lead is provided
   const { data: activitiesData } = useQuery({
     queryKey: ['leadActivities', lead?.id],
@@ -43,6 +48,43 @@ function LeadDetailModal({ lead, onClose }) {
   });
 
   const activities = activitiesData?.data || [];
+  const calls = activities.filter(a => a.type === 'call');
+
+  // Mutations for editing/deleting calls
+  const updateCallMutation = useMutation({
+    mutationFn: ({ activityId, outcome }) => leadsApi.updateCall(activityId, outcome),
+    onSuccess: () => {
+      toast.success('Call updated');
+      queryClient.invalidateQueries(['leadActivities', lead?.id]);
+      queryClient.invalidateQueries(['leadCallCount', lead?.id]);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update call');
+    }
+  });
+
+  const deleteCallMutation = useMutation({
+    mutationFn: (activityId) => leadsApi.deleteCall(activityId),
+    onSuccess: () => {
+      toast.success('Call deleted');
+      queryClient.invalidateQueries(['leadActivities', lead?.id]);
+      queryClient.invalidateQueries(['leadCallCount', lead?.id]);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to delete call');
+    }
+  });
+
+  const handleEditCall = (call, newOutcome) => {
+    if (call.metadata?.outcome === newOutcome) return;
+    updateCallMutation.mutate({ activityId: call.id, outcome: newOutcome });
+  };
+
+  const handleDeleteCall = (call) => {
+    if (window.confirm('Are you sure you want to delete this call record?')) {
+      deleteCallMutation.mutate(call.id);
+    }
+  };
 
   if (!lead) return null;
 
@@ -200,6 +242,69 @@ function LeadDetailModal({ lead, onClose }) {
                   )}
                 </div>
 
+                {/* Call History - Prominent Section */}
+                <div className="mt-4 p-4 bg-primary-500/10 border border-primary-500/30 rounded-xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-primary-300 flex items-center gap-2">
+                      <Phone className="w-5 h-5" />
+                      Call History
+                      {calls.length > 0 && (
+                        <span className="px-2 py-0.5 bg-primary-500/30 text-primary-200 rounded-full text-xs font-medium">
+                          {calls.length} {calls.length === 1 ? 'call' : 'calls'}
+                        </span>
+                      )}
+                    </h4>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {calls.length === 0 ? (
+                      <p className="text-dark-400 text-sm py-2">No calls logged yet</p>
+                    ) : (
+                      calls.map(call => {
+                        const outcome = call.metadata?.outcome || 'unknown';
+                        const isAnswered = outcome === 'answered';
+                        return (
+                          <div key={call.id} className="flex items-center gap-3 p-3 bg-dark-800/50 rounded-lg hover:bg-dark-800/70 transition-colors group">
+                            <div className={cn(
+                              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                              isAnswered ? "bg-success-500/20 border border-success-500/30" : "bg-danger-500/20 border border-danger-500/30"
+                            )}>
+                              {isAnswered ? (
+                                <CheckCircle2 className="w-5 h-5 text-success-400" />
+                              ) : (
+                                <XCircle className="w-5 h-5 text-danger-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-medium text-white">
+                                  Call {isAnswered ? 'Answered' : 'Unanswered'}
+                                </p>
+                                <button
+                                  onClick={() => handleEditCall(call, isAnswered ? 'unanswered' : 'answered')}
+                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-dark-700/50 transition-all"
+                                  title={`Mark as ${isAnswered ? 'Unanswered' : 'Answered'}`}
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-dark-400 hover:text-primary-400" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCall(call)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-dark-700/50 transition-all"
+                                  title="Delete call"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-dark-400 hover:text-danger-400" />
+                                </button>
+                              </div>
+                              <p className="text-xs text-dark-400">
+                                {formatDateTime(call.created_at)} • {formatRelativeTime(call.created_at)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
                 {/* Tags */}
                 {lead.tags && lead.tags.length > 0 && (
                   <div>
@@ -285,46 +390,6 @@ function LeadDetailModal({ lead, onClose }) {
                   </div>
                 )}
 
-                {/* Call History */}
-                {(() => {
-                  const calls = activities.filter(a => a.type === 'call');
-                  return calls.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-dark-400 mb-3 flex items-center gap-1">
-                        <Phone className="w-4 h-4" />
-                        Call History ({calls.length})
-                      </h4>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {calls.map(call => {
-                          const outcome = call.metadata?.outcome || 'unknown';
-                          const isAnswered = outcome === 'answered';
-                          return (
-                            <div key={call.id} className="flex gap-3 p-2 bg-dark-800/30 rounded-lg">
-                              <div className={cn(
-                                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                                isAnswered ? "bg-success-500/20" : "bg-danger-500/20"
-                              )}>
-                                {isAnswered ? (
-                                  <CheckCircle2 className="w-4 h-4 text-success-400" />
-                                ) : (
-                                  <XCircle className="w-4 h-4 text-danger-400" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-white">
-                                  Call {isAnswered ? 'Answered' : 'Unanswered'}
-                                </p>
-                                <p className="text-xs text-dark-500">
-                                  {formatDateTime(call.created_at)} • {formatRelativeTime(call.created_at)}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 {/* Activity Log */}
                 <div>

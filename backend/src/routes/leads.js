@@ -765,4 +765,111 @@ router.get('/:id/calls', async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/leads/activities/:activityId
+ * Update a call activity (change outcome)
+ */
+router.put('/activities/:activityId', async (req, res) => {
+  try {
+    const { activityId } = req.params;
+    const { outcome } = req.body;
+    
+    if (!outcome || !['answered', 'unanswered'].includes(outcome)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid outcome. Must be "answered" or "unanswered"'
+      });
+    }
+    
+    // Check if activity exists and is a call
+    const activityCheck = await query(
+      `SELECT id, lead_id, type FROM lead_activities WHERE id = $1`,
+      [activityId]
+    );
+    
+    if (activityCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Activity not found'
+      });
+    }
+    
+    if (activityCheck.rows[0].type !== 'call') {
+      return res.status(400).json({
+        success: false,
+        error: 'Activity is not a call'
+      });
+    }
+    
+    // Update the activity
+    await query(
+      `UPDATE lead_activities 
+       SET description = $1, metadata = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [
+        `Call ${outcome === 'answered' ? 'answered' : 'unanswered'}`,
+        JSON.stringify({ outcome }),
+        activityId
+      ]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Call updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating call:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update call',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/leads/activities/:activityId
+ * Delete a call activity
+ */
+router.delete('/activities/:activityId', async (req, res) => {
+  try {
+    const { activityId } = req.params;
+    
+    // Check if activity exists and is a call
+    const activityCheck = await query(
+      `SELECT id, lead_id, type FROM lead_activities WHERE id = $1`,
+      [activityId]
+    );
+    
+    if (activityCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Activity not found'
+      });
+    }
+    
+    if (activityCheck.rows[0].type !== 'call') {
+      return res.status(400).json({
+        success: false,
+        error: 'Activity is not a call'
+      });
+    }
+    
+    // Delete the activity
+    await query(`DELETE FROM lead_activities WHERE id = $1`, [activityId]);
+    
+    res.json({
+      success: true,
+      message: 'Call deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting call:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete call',
+      message: error.message
+    });
+  }
+});
+
 export default router;

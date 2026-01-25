@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS lead_activities (
   description TEXT,
   metadata JSONB,
   performed_by VARCHAR(255),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 `;
 
@@ -140,6 +141,14 @@ export async function migrate() {
       await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS lead_type VARCHAR(50)`);
       await query(`CREATE INDEX IF NOT EXISTS idx_leads_lead_type ON leads(lead_type)`);
       console.log('✅ Lead type column ready');
+    } catch (e) {
+      // Column might already exist
+    }
+    
+    // Add updated_at column to lead_activities if it doesn't exist
+    try {
+      await query(`ALTER TABLE lead_activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+      console.log('✅ Lead activities updated_at column ready');
     } catch (e) {
       // Column might already exist
     }
