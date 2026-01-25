@@ -61,6 +61,7 @@ import {
 import LeadModal from '../components/LeadModal';
 import LeadDetailModal from '../components/LeadDetailModal';
 import CallLogModal from '../components/CallLogModal';
+import Chatbot, { ChatbotButton } from '../components/Chatbot';
 
 const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 const SOURCES = ['meta_forms', 'calcom', 'manual', 'api', 'website', 'referral'];
@@ -370,6 +371,9 @@ function Leads() {
 
   // State for call modal
   const [callModal, setCallModal] = useState({ open: false, lead: null });
+
+  // State for chatbot
+  const [chatbotOpen, setChatbotOpen] = useState(false);
 
   // Listen for refresh events
   useEffect(() => {
@@ -1269,6 +1273,14 @@ function Leads() {
         isOpen={callModal.open}
         onClose={() => setCallModal({ open: false, lead: null })}
       />
+
+      {/* Chatbot */}
+      <Chatbot
+        isOpen={chatbotOpen}
+        onClose={() => setChatbotOpen(false)}
+        onToggle={() => setChatbotOpen(!chatbotOpen)}
+      />
+      {!chatbotOpen && <ChatbotButton onClick={() => setChatbotOpen(true)} />}
     </div>
   );
 }

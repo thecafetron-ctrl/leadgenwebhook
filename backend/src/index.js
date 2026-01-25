@@ -46,6 +46,7 @@ import webhookRoutes from './routes/webhooks.js';
 import emailRoutes from './routes/email.js';
 import sequenceRoutes from './routes/sequences.js';
 import evolutionRoutes from './routes/evolution.js';
+import chatbotRoutes from './routes/chatbot.js';
 
 // Import sequence service for scheduler
 import { processMessageQueue } from './services/sequenceService.js';
@@ -204,6 +205,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/sequences', sequenceRoutes);
 app.use('/api/evolution', evolutionRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 // ============================================
 // LEGAL PAGES
